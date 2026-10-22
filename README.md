@@ -16,7 +16,7 @@ Aplikace je interní a nepodepsaná, jen pro Apple Silicon (M1 a novější).
 
 - **Google Drive pro počítač** je nainstalovaný, přihlášený účtem s právem zápisu na sdílený disk a běží (ikona v liště).
 - Drive je v režimu **Streamovat soubory** (Nastavení Drivu → Google Drive). Soubory se pak po uploadu uvolní z lokálního disku a Mac se nezaplní.
-- Anthropic API klíč (zadá se jednou, viz níže).
+- Anthropic API klíč (zadá se jednou, viz níže). Bez klíče jde kartu aspoň **zálohovat bez třídění**.
 
 ## První nastavení
 
@@ -32,6 +32,7 @@ Otevři **Nastavení** v aplikaci:
 1. **Zasuň kartu.** Aplikace ji pozná a otevře okno „Nová karta“.
 2. Vyber **složku akce** (existující, nebo založ novou, např. `2026-10-20 Fenerbahçe – Slavia`) a **šablonu**. Volitelně vlož soupisku (číslo a jméno hráče).
 3. Zmáčkni **Start**. Průběh je vidět v okně, kameraman může odejít.
+   Bez uloženého API klíče je místo Startu tlačítko **Zálohovat bez třídění**: všechny klipy se zálohují do `_nezařazeno` pod původním názvem (TOP záběr jako `<název>_TOP`), černé značky a TOP záběry se pořád poznají, ověření a CSV fungují stejně.
 4. **Počkej na zelené potvrzení**: „Zapsáno a ověřeno. Kartu můžeš vytáhnout. Drive dokončuje upload, kartu formátuj až po jeho dokončení (ikona Drive v liště).“
 5. **Kartu neformátuj, dokud Drive nedokončí upload.** Potvrzení znamená, že soubory jsou správně zapsané ve složce Drivu, ne že už jsou v cloudu. Upload dělá Drive na pozadí. Karta se formátuje vždy až ve fotoaparátu.
 
@@ -42,8 +43,9 @@ Do zeleného potvrzení aplikace velkým textem říká „Karta ještě NENÍ z
 - **Nic se nesmaže.** Aplikace nemá žádné tlačítko pro mazání ani formátování.
 - **Karta je jen pro čtení.** Na kartu se nezapisuje, nic se nepřejmenovává ani nepřesouvá.
 - **Na disk se jen přidává.** Existující soubory se nepřepisují. Když název už existuje, přidá se ` (2)`, ` (3)`. Soubor se stejným obsahem z dřívějšího běhu se nenahrává znovu („už nahráno dřív“).
-- **Selhání AI nezablokuje zálohu.** Klip, který se nepodařilo zařadit, jde do složky `_nezařazeno` pod původním názvem.
-- Ostatní soubory z karty (fotky, zvuk, XML) jdou beze změny do složky `_ostatni`.
+- **Selhání AI nezablokuje zálohu.** Klip, který se nepodařilo zařadit, jde do složky `_nezařazeno` pod původním názvem. Když AI selže 5× po sobě (síť, výpadek), aplikace se jí přestane ptát a zbytek zálohuje do `_nezařazeno`; na konci napíše „AI nedostupná — zbytek zálohován bez třídění.“
+- Ostatní soubory z karty (fotky, zvuk, XML) jdou beze změny do složky `_ostatni`. Patří sem i proxy a náhledy ze Sony (`M4ROOT/SUB/`, `M4ROOT/THMBNL/`): netřídí se, neposílají se AI a nepočítají se jako klipy ani pro TOP.
+- Když se karta během zálohy vymění (stejné názvy, jiný obsah), běh se zastaví jako při odpojení karty.
 
 ## Co znamená TOP a černé značky
 
@@ -57,7 +59,9 @@ Do zeleného potvrzení aplikace velkým textem říká „Karta ještě NENÍ z
 - **Nedostatek místa**: aplikace kopírování pozastaví a čeká, až Drive uvolní místo (ukáže hlášku). Zkontroluj, že Drive je ve „Streamovat soubory“, je přihlášený a nahrává.
 - **Složka akce zmizela / Drive neběží**: spusť Google Drive pro počítač, počkej na přihlášení a začni znovu. Běh skončí hláškou, nic se neztratí.
 - **Klipy ve složce `_nezařazeno`**: AI selhala (síť, klíč, chyba API) nebo si nebyla jistá. Klipy jsou zálohované, jen je ručně přesuň. Zkontroluj API klíč v Nastavení.
-- **Karta se neobjevila**: ověř přístup k vyměnitelným svazkům (viz Instalace) a že je karta vidět ve Finderu.
+- **Karta se neobjevila**: ověř přístup k vyměnitelným svazkům (viz Instalace) a že je karta vidět ve Finderu. Kartu, kterou ještě nejde přečíst, aplikace zkouší znovu každých pár sekund.
+- **„Chybí nástroj ffprobe/ffmpeg — aplikace je poškozená, kontaktuj Jana.“**: balíček aplikace je neúplný, zálohu nejde spustit. Je potřeba nový balíček (`npm run app`).
+- **Skryté soubory `.<název>.partial`** ve složce akce (v podsložkách): dočasné soubory z přerušeného nebo neúspěšného běhu (soubor, který neprošel ověřením, nebo kopie rozepsaná při pádu aplikace). Klidně je smaž ručně; aplikace je sama nikdy nemaže. Při dalším běhu se soubor zkopíruje znovu.
 - **CSV**: v cílové složce je `_trideni_<datum-čas>.csv` se sloupci `puvodni_nazev;novy_nazev;slozka;poznamka`.
 
 ## Pro vývojáře
@@ -74,4 +78,4 @@ npm run eval                     # přesnost klasifikátoru na referenční sad�
 npm run app                      # build + balíček dist/Trideni karet-darwin-arm64/Trideni karet.app
 ```
 
-`npm install` (postinstall) a `npm run app` spouštějí `scripts/bundle-ffprobe.mjs`, který z Homebrew ffmpeg (`brew install ffmpeg`) složí samostatný arm64 ffprobe i s knihovnami do `resources/bin/` (viz architektura). Balíček tak funguje i na Macu bez Homebrew. Pokud `npm run app` skončí na „fetch failed“ (stažení Electronu), spusť ho znovu.
+`npm install` (postinstall) a `npm run app` spouštějí `scripts/bundle-ffprobe.mjs`, který z Homebrew ffmpeg (`brew install ffmpeg`) složí samostatný arm64 ffprobe i s knihovnami do `resources/bin/` (viz architektura). Balíček tak funguje i na Macu bez Homebrew. Když ffprobe složit nejde (chybí Homebrew ffmpeg, není to arm64 Mac), postinstall jen varuje, ale `npm run app` (`--require`) skončí chybou, aby nevznikl balíček bez ffprobe. Pokud `npm run app` skončí na „fetch failed“ (stažení Electronu), spusť ho znovu.

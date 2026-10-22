@@ -33,6 +33,7 @@ Task plan/constraints: `.superpowers/sdd/2026-10-22-trideni-karet/` (gitignored)
 - `ffmpeg-static` (arm64) in `app.asar.unpacked`. `ffprobe-static`'s darwin/arm64 binary is x86_64, so
   `scripts/bundle-ffprobe.mjs` (postinstall + `npm run app`) builds `resources/bin/ffprobe` + `resources/bin/lib/*.dylib`
   from Homebrew ffmpeg (needs `brew install ffmpeg`), rewritten to `@loader_path` and ad-hoc signed. No `/opt/homebrew` references remain.
+  postinstall only warns when it cannot bundle; `npm run app` passes `--require` and fails. The app checks both binaries at start (`src/main/tools.ts`).
 - `ffprobePath()` prefers `resources/bin` (packaged: `process.resourcesPath/bin`). Env overrides: `TRIDENI_FFMPEG`, `TRIDENI_FFPROBE`.
 - First spawn of a binary can take several seconds; tests use a 30 s timeout.
 
