@@ -32,7 +32,11 @@ function isSystemEntry(name: string): boolean {
   return name.startsWith('._') || SYSTEM_NAMES.has(name)
 }
 
-function kindOf(fileName: string): CardFile['kind'] {
+/** Sony proxies (`M4ROOT/SUB/`) and thumbnails (`M4ROOT/THMBNL/`) are kept as plain files, never treated as clips. */
+const SIDECAR_DIR = /(^|\/)M4ROOT\/(SUB|THMBNL)\//i
+
+function kindOf(relPath: string, fileName: string): CardFile['kind'] {
+  if (SIDECAR_DIR.test(relPath)) return 'other'
   const dot = fileName.lastIndexOf('.')
   if (dot < 0) return 'other'
   return VIDEO_EXTENSIONS.has(fileName.slice(dot + 1).toLowerCase()) ? 'video' : 'other'
@@ -57,7 +61,7 @@ export async function scanCard(root: string): Promise<CardFile[]> {
         await walk(absPath, relPath)
       } else if (entry.isFile()) {
         const info = await lstat(absPath)
-        out.push({ relPath, absPath, size: info.size, kind: kindOf(entry.name) })
+        out.push({ relPath, absPath, size: info.size, kind: kindOf(relPath, entry.name) })
       }
     }
   }

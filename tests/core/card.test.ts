@@ -63,6 +63,29 @@ describe('scanCard', () => {
     expect(files.every((f) => f.kind === 'video')).toBe(true)
   })
 
+  it('treats Sony proxies (M4ROOT/SUB) and thumbnails (M4ROOT/THMBNL) as other files, case-insensitively', async () => {
+    await touch('PRIVATE/M4ROOT/CLIP/C0001.MP4')
+    await touch('PRIVATE/M4ROOT/SUB/C0001S03.MP4')
+    await touch('PRIVATE/M4ROOT/THMBNL/C0001T01.JPG')
+    await touch('X/m4root/sub/C0002S03.MP4') // own parents: the test volume may be case-insensitive
+    await touch('Y/M4Root/Thmbnl/C0002T01.MOV')
+    await touch('M4ROOT/SUB/deeper/C0003S03.MP4') // any depth below M4ROOT/SUB
+    await touch('DCIM/SUB/clip.mp4') // SUB outside M4ROOT is a normal folder
+    await touch('PRIVATE/M4ROOT/SUBCLIP/C0004.MP4') // only the exact segment counts
+
+    const kinds = Object.fromEntries((await scanCard(root)).map((f) => [f.relPath, f.kind]))
+    expect(kinds).toEqual({
+      'DCIM/SUB/clip.mp4': 'video',
+      'M4ROOT/SUB/deeper/C0003S03.MP4': 'other',
+      'PRIVATE/M4ROOT/CLIP/C0001.MP4': 'video',
+      'PRIVATE/M4ROOT/SUB/C0001S03.MP4': 'other',
+      'PRIVATE/M4ROOT/SUBCLIP/C0004.MP4': 'video',
+      'PRIVATE/M4ROOT/THMBNL/C0001T01.JPG': 'other',
+      'X/m4root/sub/C0002S03.MP4': 'other',
+      'Y/M4Root/Thmbnl/C0002T01.MOV': 'other',
+    })
+  })
+
   it('returns an empty list for an empty card', async () => {
     expect(await scanCard(root)).toEqual([])
   })

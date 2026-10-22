@@ -365,6 +365,28 @@ describe('runCard', () => {
     expect(rows.find((r) => r[0] === 'C0003.MP4')?.[2]).toBe('(nekopírováno)')
   })
 
+  it('copies Sony proxies and thumbnails to _ostatni without probing, classifying or using them for TOP', { timeout: 120_000 }, async () => {
+    // proxies are real clips here (same picture and time as the originals): they would be markers/TOP candidates if analysed
+    await put('PRIVATE/M4ROOT/SUB/C0001S03.MP4', { copyFrom: clips.c1 })
+    await put('PRIVATE/M4ROOT/SUB/C0002S03.MP4', { copyFrom: clips.c2 })
+    await put('PRIVATE/M4ROOT/THMBNL/C0001T01.JPG', Buffer.from([0xff, 0xd8, 0xff, 0xd9]))
+    const classifier = fakeClassifier()
+    const { summary, events } = await run({ classifier })
+
+    expect([...classifier.seen].sort()).toEqual(['C0001.MP4', 'C0003.MP4'])
+    expect(events[0]).toMatchObject({ type: 'scanned', videos: 3, others: 5 })
+    expect(media(await listFiles(eventDir))).toEqual([
+      'Zápas/C0001_TOP_gol.MP4',
+      'Zápas/C0003_sance.MP4',
+      '_ostatni/DCIM/100MSDCF/DSC00001.JPG',
+      `_ostatni/${CLIP_DIR}/C0001M01.XML`,
+      '_ostatni/PRIVATE/M4ROOT/SUB/C0001S03.MP4',
+      '_ostatni/PRIVATE/M4ROOT/SUB/C0002S03.MP4',
+      '_ostatni/PRIVATE/M4ROOT/THMBNL/C0001T01.JPG',
+    ])
+    expect(summary).toMatchObject({ top: 1, markers: 1, orphanMarkers: 0, others: 5, status: 'ok' })
+  })
+
   it('lists an orphan marker without a TOP clip', { timeout: 120_000 }, async () => {
     await fs.rm(path.join(cardRoot, CLIP_DIR, 'C0001.MP4'))
     const { summary } = await run()
