@@ -66,6 +66,7 @@ beforeEach(async () => {
   cardRoot = path.join(root, 'SONY')
   eventDir = path.join(root, 'drive', 'Akce')
   journalFile = path.join(root, 'journal.jsonl')
+  await fs.mkdir(eventDir, { recursive: true }) // the pipeline never creates the event folder itself
   await put(`${CLIP_DIR}/C0001.MP4`, { copyFrom: clips.c1 })
   await put(`${CLIP_DIR}/C0002.MP4`, { copyFrom: clips.c2 })
   await put(`${CLIP_DIR}/C0003.MP4`, { copyFrom: clips.c3 })
@@ -377,6 +378,31 @@ describe('runCard', () => {
     expect(summary.verifyFailed.some((v) => v.includes('C0003.MP4'))).toBe(true) // not processed
     expect(events.at(-1)).toMatchObject({ type: 'done' })
     expect(events.some((e) => e.type === 'card_removed')).toBe(false)
+  })
+
+  it('never recreates the event folder: removed before the first copy, nothing is written and the run ends verify_failed', { timeout: 120_000 }, async () => {
+    const inner = fakeClassifier()
+    const classifier: Classifier = {
+      async classify(input) {
+        rmSync(eventDir, { recursive: true, force: true }) // e.g. the Drive mount vanished during classification
+        return inner.classify(input)
+      },
+    }
+    const { summary, events } = await run({ classifier })
+    await expect(fs.lstat(eventDir)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect((await fs.readdir(path.dirname(eventDir))).length).toBe(0)
+    expect(summary.status).toBe('verify_failed')
+    expect(summary.csvPath).toBe('')
+    expect(summary.verifyFailed.some((v) => v.includes('C0001.MP4'))).toBe(true)
+    expect(events.some((e) => e.type === 'copied')).toBe(false)
+    expect(events.at(-1)).toMatchObject({ type: 'done' })
+  })
+
+  it('does not create the event folder when it is missing from the start', { timeout: 120_000 }, async () => {
+    await fs.rm(eventDir, { recursive: true })
+    const { summary } = await run()
+    await expect(fs.lstat(eventDir)).rejects.toMatchObject({ code: 'ENOENT' })
+    expect(summary.status).toBe('verify_failed')
   })
 
   it('does not skip a clip from a second card that shares relPath and size with an uploaded one', { timeout: 120_000 }, async () => {

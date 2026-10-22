@@ -17,8 +17,11 @@ Spec (Czech, source of truth for behaviour and safety rules):
 ## Structure
 - `src/core/` — pure TypeScript modules (no Electron imports), tested with Vitest
   - `bin.ts` — `ffmpegPath()` / `ffprobePath()`
-- `src/main/` — Electron main process (`index.ts`)
-- `src/preload/` — contextBridge preload (`index.ts`, built to `out/preload/index.cjs`)
+- `src/main/` — Electron main process. Electron-free (unit-tested): `settings.ts`, `watcher.ts` (/Volumes card detection),
+  `queue.ts` (one job at a time), `runner.ts` (`run:start` validation, event folder, pipeline job, notices), `cardinfo.ts`.
+  Electron-dependent (not tested): `index.ts` (window, watcher, notifications), `ipc.ts` (`ipcMain.handle`, Zod-validated), `secrets.ts` (safeStorage)
+- `src/shared/ipc-types.ts` — IPC channel names, payload types, `Api` (`window.api`), `Settings`
+- `src/preload/` — contextBridge preload exposing `window.api` (`index.ts`, built to `out/preload/index.cjs`)
 - `src/renderer/` — React 19 UI (`index.html`, `main.tsx`)
 - `src/types/` — ambient type declarations (`ffprobe-static`)
 - `tests/` — Vitest tests mirroring `src/`
@@ -43,5 +46,9 @@ Spec (Czech, source of truth for behaviour and safety rules):
 - Env overrides: `TRIDENI_FFMPEG`, `TRIDENI_FFPROBE`.
 - First spawn of a binary can take several seconds (macOS scan); tests use a 30 s timeout.
 
+## Runtime files (`app.getPath('userData')`)
+`settings.json`, `journal.jsonl`, `apikey.bin` (safeStorage-encrypted; refused if encryption is unavailable).
+The pipeline never creates the event folder: `run:start` does it once (non-recursive `mkdir` under an existing `rootDir`).
+
 ## Status
-Task 1 (scaffold + bundled ffmpeg) done. Core modules, main process wiring and UI follow in later tasks.
+Core modules and main process (settings, Keychain, card watcher, queue, IPC) done. UI follows in later tasks.

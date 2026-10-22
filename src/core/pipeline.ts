@@ -154,6 +154,19 @@ function compareByDate(a: Planned, b: Planned): number {
   return a.file.relPath < b.file.relPath ? -1 : a.file.relPath > b.file.relPath ? 1 : 0
 }
 
+/** Creates `segments` one level at a time beneath `base`, which must already exist (it is never created, unlike `mkdir -p`). */
+async function mkdirBelow(base: string, segments: readonly string[]): Promise<void> {
+  let dir = base
+  for (const segment of segments) {
+    dir = path.join(dir, segment)
+    try {
+      await fs.mkdir(dir)
+    } catch (e) {
+      if (errCode(e) !== 'EEXIST') throw e
+    }
+  }
+}
+
 const byRelPath = (a: CardFile, b: CardFile): number => (a.relPath < b.relPath ? -1 : a.relPath > b.relPath ? 1 : 0)
 
 /**
@@ -424,8 +437,21 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
     }
   }
 
+  /** The event folder is created by the caller. It is never (re)created here: a vanished mount must not turn into a local folder. */
+  const eventDirExists = async (): Promise<boolean> => {
+    try {
+      return (await fs.lstat(eventDir)).isDirectory()
+    } catch {
+      return false
+    }
+  }
+
   for (const p of ordered) {
     if (stopped()) break
+    if (!(await eventDirExists())) {
+      destinationGone = true
+      break
+    }
     const { file } = p
     const notes: string[] = []
     if (p.top) notes.push('TOP')
@@ -475,7 +501,7 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
     const destDir = path.join(eventDir, ...folder.split('/'))
 
     try {
-      await fs.mkdir(destDir, { recursive: true })
+      await mkdirBelow(eventDir, folder.split('/'))
     } catch (e) {
       verifyFailed.push(`${file.relPath} (${errMessage(e)})`)
       setRow(file, '', NOT_COPIED, [...notes, `složku nešlo vytvořit: ${errMessage(e)}`])
@@ -577,7 +603,7 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
   const stamp = csvName(new Date())
   let csvPath = ''
   try {
-    if (!destinationGone) await fs.mkdir(eventDir, { recursive: true })
+    // No mkdir here either: without the event folder the CSV simply cannot be written (and is reported as such).
     for (let n = 1; csvPath === ''; n++) {
       const candidate = path.join(eventDir, n === 1 ? stamp : withConflictSuffix(stamp, n))
       try {

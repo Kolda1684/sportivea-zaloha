@@ -3,7 +3,8 @@ import { createRequire } from 'node:module'
 import { dirname, join, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const require = createRequire(import.meta.url)
+// Named nodeRequire: electron-vite injects its own `const require` into the bundled main process.
+const nodeRequire = createRequire(import.meta.url)
 
 interface ProcessWithResources {
   resourcesPath?: string
@@ -35,7 +36,7 @@ function bundledResource(name: string): string | null {
 export function ffmpegPath(): string {
   const override = process.env['TRIDENI_FFMPEG']
   if (override) return override
-  const resolved = require('ffmpeg-static') as string | null
+  const resolved = nodeRequire('ffmpeg-static') as string | null
   if (!resolved) throw new Error('ffmpeg-static has no binary for this platform')
   return unpackedPath(resolved)
 }
@@ -47,6 +48,6 @@ export function ffprobePath(): string {
   // postinstall script puts a real arm64 ffprobe into resources/bin/.
   const bundled = bundledResource('ffprobe')
   if (bundled) return bundled
-  const { path } = require('ffprobe-static') as { path: string }
+  const { path } = nodeRequire('ffprobe-static') as { path: string }
   return unpackedPath(path)
 }
