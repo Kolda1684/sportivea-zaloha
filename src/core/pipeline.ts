@@ -61,6 +61,11 @@ export type RunSummary = {
   costUsd: number
   csvPath: string
   status: 'ok' | 'card_removed' | 'verify_failed' | 'aborted'
+  /**
+   * 'used': the classifier was asked for every clip; 'unavailable': it was given up after repeated API
+   * failures and the remaining clips were backed up unsorted.
+   */
+  ai: 'used' | 'unavailable'
 }
 
 const DEFAULT_CONCURRENCY = 4
@@ -69,6 +74,9 @@ const ANALYSIS_CONCURRENCY = 2
 const NOT_COPIED = '(nekopírováno)'
 /** Note prefix when a clip could not be probed / sampled / turned into a contact sheet. */
 export const ANALYSIS_FAILED = 'náhled klipu selhal'
+/** After this many API failures in a row the classifier is not asked again in this run. */
+const MAX_CONSECUTIVE_API_FAILURES = 5
+export const AI_UNAVAILABLE = 'AI nedostupná, zálohováno bez třídění'
 const SOURCE_GONE_CODES: ReadonlySet<string> = new Set(['ENOENT', 'EIO', 'ENXIO'])
 
 function errCode(e: unknown): string | undefined {
@@ -348,6 +356,9 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
     )
   }
 
+  // Circuit breaker: when the API keeps failing (offline, outage), stop asking it and back the rest up unsorted.
+  let consecutiveApiFailures = 0
+  let aiUnavailable = false
   if (!stopped()) {
     const toClassify = videos.filter((f) => !markerSet.has(f.relPath) && !confirmed.has(f.relPath))
     await pool(
@@ -359,6 +370,8 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
         let result: ClassifyResult | undefined
         if (clip.analysisError !== undefined || !clip.meta) {
           result = failure(`${ANALYSIS_FAILED}: ${clip.analysisError ?? 'neznámá chyba'}`)
+        } else if (aiUnavailable) {
+          result = failure(AI_UNAVAILABLE)
         } else {
           let sheet: Buffer | undefined
           try {
@@ -378,7 +391,13 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
                 roster,
               })
             } catch (e) {
-              result = failure(errMessage(e))
+              result = { ...failure(errMessage(e)), apiFailure: true }
+            }
+            if (result.apiFailure === true) {
+              consecutiveApiFailures++
+              if (consecutiveApiFailures >= MAX_CONSECUTIVE_API_FAILURES) aiUnavailable = true
+            } else {
+              consecutiveApiFailures = 0
             }
           }
         }
@@ -636,6 +655,7 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
     others,
     costUsd: cost,
     csvPath,
+    ai: aiUnavailable ? 'unavailable' : 'used',
     status: cardRemoved
       ? 'card_removed'
       : aborted && unplaced.length > 0

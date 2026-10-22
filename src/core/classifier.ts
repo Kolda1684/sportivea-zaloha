@@ -22,6 +22,8 @@ export type ClassifyResult = {
   confidence: 'high' | 'medium' | 'low'
   ok: boolean
   error?: string
+  /** The API could not be used at all (network, timeout, HTTP error) — as opposed to a refusal or an unusable answer. */
+  apiFailure?: boolean
   usage?: TokenUsage
 }
 
@@ -123,12 +125,20 @@ function toTokenUsage(u: UsageLike, requestedModel: string, answeredModel: strin
   }
 }
 
+/** Per request; the SDK retries a timed-out or failed request at most twice. */
+const REQUEST_TIMEOUT_MS = 60_000
+const MAX_RETRIES = 2
+
+export function makeAnthropicClient(apiKey: string): Anthropic {
+  return new Anthropic({ apiKey, timeout: REQUEST_TIMEOUT_MS, maxRetries: MAX_RETRIES })
+}
+
 export class ClaudeClassifier implements Classifier {
   private readonly client: Anthropic
   private readonly model: string
 
   constructor(opts: { apiKey: string; model: string; client?: Anthropic }) {
-    this.client = opts.client ?? new Anthropic({ apiKey: opts.apiKey })
+    this.client = opts.client ?? makeAnthropicClient(opts.apiKey)
     this.model = opts.model
   }
 
@@ -176,7 +186,8 @@ export class ClaudeClassifier implements Classifier {
       }
       return { ...sanitizeResult(response.parsed_output, input.template, input.handLabel), usage }
     } catch (err) {
-      return failure(err instanceof Error ? err.message : String(err))
+      // the request itself failed (connection, timeout after retries, HTTP error)
+      return { ...failure(err instanceof Error ? err.message : String(err)), apiFailure: true }
     }
   }
 }

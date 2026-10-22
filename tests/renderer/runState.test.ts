@@ -34,6 +34,7 @@ const summary = (patch: Partial<RunSummary> = {}): RunSummary => ({
   costUsd: 0,
   csvPath: '',
   status: 'ok',
+  ai: 'used',
   ...patch,
 })
 

@@ -223,6 +223,76 @@ describe('runCard', () => {
     expect(rows.find((r) => r[0] === 'C0001.MP4')?.[1]).toBe('C0001_TOP.MP4')
   })
 
+  describe('when the AI is unavailable', () => {
+    /** Five clips that are neither markers nor TOP: c3 copies, one minute apart. */
+    async function fiveMoreClips(): Promise<void> {
+      for (let i = 4; i <= 8; i++) await put(`${CLIP_DIR}/C000${i}.MP4`, { copyFrom: clips.c3 })
+    }
+    function throwingClassifier(): Classifier & { calls: number } {
+      const c = {
+        calls: 0,
+        async classify(): Promise<ClassifyResult> {
+          c.calls++
+          throw new Error('connect ETIMEDOUT')
+        },
+      }
+      return c
+    }
+
+    it('stops calling the classifier after 5 consecutive API failures and still backs everything up', { timeout: 120_000 }, async () => {
+      await fiveMoreClips() // 7 clips to classify in total
+      const classifier = throwingClassifier()
+      const { summary } = await run({ classifier, concurrency: 1 })
+
+      expect(classifier.calls).toBe(5)
+      expect(summary.ai).toBe('unavailable')
+      expect(summary.status).toBe('ok')
+      expect(summary.unclassified).toBe(7)
+      expect(summary.verifyFailed).toEqual([])
+      const files = media(await listFiles(eventDir))
+      expect(files).toContain('_nezařazeno/C0001_TOP.MP4') // TOP name kept (Ruling 17)
+      for (const n of [3, 4, 5, 6, 7, 8]) expect(files).toContain(`_nezařazeno/C000${n}.MP4`)
+      expect(files).toContain('_ostatni/DCIM/100MSDCF/DSC00001.JPG')
+      const notes = (await readCsv(summary.csvPath)).map((r) => r.slice(3).join(';')) // a note may itself contain ';'
+      expect(notes.filter((n) => n.includes('connect ETIMEDOUT'))).toHaveLength(5)
+      expect(notes.filter((n) => n.includes('AI nedostupná'))).toHaveLength(2)
+    })
+
+    it('never makes more than 5 + (parallel - 1) calls when classifying in parallel', { timeout: 120_000 }, async () => {
+      await fiveMoreClips()
+      for (let i = 10; i <= 15; i++) await put(`${CLIP_DIR}/C00${i}.MP4`, { copyFrom: clips.c3 })
+      const classifier = throwingClassifier()
+      const { summary } = await run({ classifier, concurrency: 4 })
+      expect(classifier.calls).toBeGreaterThanOrEqual(5)
+      expect(classifier.calls).toBeLessThanOrEqual(8)
+      expect(summary.ai).toBe('unavailable')
+      expect(summary.status).toBe('ok')
+      expect(summary.unclassified).toBe(13)
+    })
+
+    it('counts only consecutive API failures: a success or a refusal resets the count', { timeout: 120_000 }, async () => {
+      await fiveMoreClips()
+      for (let i = 10; i <= 12; i++) await put(`${CLIP_DIR}/C00${i}.MP4`, { copyFrom: clips.c3 })
+      let calls = 0
+      const classifier: Classifier = {
+        async classify(input) {
+          calls++
+          // every 4th call answers (a refusal: ok:false but not an API failure), the others fail
+          if (calls % 4 === 0) return { category: '_nezařazeno', description: '', confidence: 'low', ok: false, error: 'Model odmítl klip zpracovat' }
+          return { category: '_nezařazeno', description: '', confidence: 'low', ok: false, error: `down ${input.fileName}`, apiFailure: true }
+        },
+      }
+      const { summary } = await run({ classifier, concurrency: 1 })
+      expect(calls).toBe(10) // 10 clips, never 5 failures in a row
+      expect(summary.ai).toBe('used')
+    })
+
+    it('reports the AI as used on a normal run', { timeout: 120_000 }, async () => {
+      const { summary } = await run()
+      expect(summary.ai).toBe('used')
+    })
+  })
+
   it('reports low-confidence clips', { timeout: 120_000 }, async () => {
     const low: ClassifyResult = { category: 'Zápas', description: 'sance', confidence: 'low', ok: true }
     const { summary } = await run({ classifier: fakeClassifier({ 'C0003.MP4': low }) })

@@ -3,7 +3,14 @@ import type { RunSummary } from '../../core/pipeline'
 import { UNCLASSIFIED } from '../../core/templates'
 import { baseName, classifyFailureMessage, formatCzk, plural } from '../format'
 import { countClassifyFailures, type RunItem, type RunState } from '../runState'
-import { ABORTED_MESSAGE, CARD_REMOVED_MESSAGE, FINAL_OK_MESSAGE, NOT_BACKED_UP_HEADING, VERIFY_FAILED_MESSAGE } from '../strings'
+import {
+  ABORTED_MESSAGE,
+  AI_UNAVAILABLE_MESSAGE,
+  CARD_REMOVED_MESSAGE,
+  FINAL_OK_MESSAGE,
+  NOT_BACKED_UP_HEADING,
+  VERIFY_FAILED_MESSAGE,
+} from '../strings'
 
 type ManualEntry = { key: string; name: string; folder: string; original: string; reason: string }
 
@@ -88,6 +95,12 @@ export function Done({ run, summary, czkPerUsd, canRerun, onRerun, onClose }: Do
           {summary.status === 'card_removed' && <p className="banner-text">{CARD_REMOVED_MESSAGE}</p>}
           {summary.status === 'verify_failed' && <p className="banner-text">{VERIFY_FAILED_MESSAGE}</p>}
         </div>
+      )}
+
+      {summary.ai === 'unavailable' && (
+        <p className="callout warn" role="status">
+          {AI_UNAVAILABLE_MESSAGE}
+        </p>
       )}
 
       {failedClassify > 0 && (

@@ -22,6 +22,7 @@ const SUMMARY: RunSummary = {
   costUsd: 0,
   csvPath: '',
   status: 'ok',
+  ai: 'used',
 }
 
 let base: string

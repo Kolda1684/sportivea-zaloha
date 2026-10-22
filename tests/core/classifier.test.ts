@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ClaudeClassifier,
   buildSystemPrompt,
+  makeAnthropicClient,
   sanitizeResult,
   type ClassifyInput,
 } from '../../src/core/classifier'
@@ -153,13 +154,20 @@ describe('ClaudeClassifier.classify', () => {
     expect(r.error).toBeTruthy()
   })
 
-  it('catches APIConnectionError and returns ok:false with the message', async () => {
+  it('catches APIConnectionError and returns ok:false with the message, marked as an API failure', async () => {
     const c = classifier(async () => {
       throw new Anthropic.APIConnectionError({ message: 'Connection error.' })
     })
     const r = await c.classify(input())
-    expect(r).toMatchObject({ ok: false, category: UNCLASSIFIED, description: '' })
+    expect(r).toMatchObject({ ok: false, category: UNCLASSIFIED, description: '', apiFailure: true })
     expect(r.error).toBe('Connection error.')
+  })
+
+  it('does not mark a refusal or an unparsable answer as an API failure', async () => {
+    const refused = await classifier(async () => ok(null, { stop_reason: 'refusal' })).classify(input())
+    const unparsable = await classifier(async () => ok(null, { stop_reason: 'max_tokens' })).classify(input())
+    expect(refused.apiFailure).toBeUndefined()
+    expect(unparsable.apiFailure).toBeUndefined()
   })
 
   it('never throws on non-Error rejections', async () => {
@@ -168,6 +176,14 @@ describe('ClaudeClassifier.classify', () => {
     })
     const r = await c.classify(input())
     expect(r).toMatchObject({ ok: false, category: UNCLASSIFIED, error: 'boom' })
+  })
+})
+
+describe('makeAnthropicClient', () => {
+  it('gives up on a request after 60 s and retries at most twice', () => {
+    const client = makeAnthropicClient('sk-test-not-real')
+    expect(client.timeout).toBe(60_000)
+    expect(client.maxRetries).toBe(2)
   })
 })
 
