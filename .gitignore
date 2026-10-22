@@ -6,3 +6,4 @@ dist/
 eval-results/
 resources/bin/
 .DS_Store
+tests/fixtures/.cache/
