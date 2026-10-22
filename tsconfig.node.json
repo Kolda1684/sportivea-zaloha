@@ -20,6 +20,7 @@
     "src/core/**/*",
     "src/shared/**/*",
     "src/types/**/*",
+    "scripts/**/*.ts",
     "tests/**/*",
     "electron.vite.config.ts",
     "vitest.config.ts"
