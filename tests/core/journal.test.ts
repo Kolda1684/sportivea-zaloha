@@ -1,7 +1,9 @@
 import * as fs from 'node:fs/promises'
+import fsDefault from 'node:fs/promises'
+import { syncBuiltinESMExports } from 'node:module'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Journal, type JournalEntry } from '../../src/core/journal'
 
 let dir: string
@@ -29,6 +31,8 @@ beforeEach(async () => {
   file = path.join(dir, 'journal.jsonl')
 })
 afterEach(async () => {
+  vi.restoreAllMocks()
+  syncBuiltinESMExports()
   await fs.rm(dir, { recursive: true, force: true })
 })
 
@@ -89,5 +93,25 @@ describe('Journal', () => {
     const again = await Journal.load(nested)
     expect(again.find(e1.eventDir, e1.sha256, e1.size)).toEqual(e1)
     expect(again.find(e2.eventDir, e2.sha256, e2.size)).toEqual(e2)
+  })
+
+  it('starts the next entry on a new line after a failed append left a fragment', async () => {
+    const j = await Journal.load(file)
+    await j.append(e1)
+    const realAppend = fsDefault.appendFile.bind(fsDefault)
+    vi.spyOn(fsDefault, 'appendFile').mockImplementationOnce((async (f: string) => {
+      await realAppend(f, '{"sha256":"cc')
+      throw new Error('disk error')
+    }) as never)
+    syncBuiltinESMExports()
+    await expect(j.append(e2)).rejects.toThrow('disk error')
+    vi.restoreAllMocks()
+    syncBuiltinESMExports()
+    const e3: JournalEntry = { ...e2, sha256: 'd'.repeat(64), size: 300 }
+    await j.append(e3)
+    const again = await Journal.load(file)
+    expect(again.find(e1.eventDir, e1.sha256, e1.size)).toEqual(e1)
+    expect(again.find(e3.eventDir, e3.sha256, e3.size)).toEqual(e3)
+    expect(again.find(e2.eventDir, e2.sha256, e2.size)).toBeUndefined()
   })
 })

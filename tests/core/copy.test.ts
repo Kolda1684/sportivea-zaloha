@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto'
 import { Readable } from 'node:stream'
 import * as fs from 'node:fs/promises'
+import fsDefault from 'node:fs/promises'
+import { syncBuiltinESMExports } from 'node:module'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -37,6 +39,8 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  vi.restoreAllMocks()
+  syncBuiltinESMExports()
   await fs.rm(root, { recursive: true, force: true })
 })
 
@@ -307,6 +311,83 @@ describe('copyVerified', () => {
     ).rejects.toThrow()
     expect(await names(destDir)).toEqual([])
     expect(await names(root)).toEqual(['card', 'drive'])
+  })
+})
+
+describe('copyVerified fix round 1', () => {
+  it('keeps the original source error when closing the temp handle also fails', async () => {
+    const src = await write(path.join(srcDir, 'C0001.MP4'), 'footage')
+    const realOpen = fsDefault.open.bind(fsDefault)
+    vi.spyOn(fsDefault, 'open').mockImplementation((async (p: string, ...rest: unknown[]) => {
+      const fh = await (realOpen as (...a: unknown[]) => Promise<fs.FileHandle>)(p, ...rest)
+      if (p.endsWith('.partial')) {
+        const realClose = fh.close.bind(fh)
+        fh.close = async (): Promise<void> => {
+          await realClose()
+          throw fsError('EBADF')
+        }
+      }
+      return fh
+    }) as never)
+    syncBuiltinESMExports()
+    const openRead = (): NodeJS.ReadableStream =>
+      new Readable({
+        read() {
+          this.destroy(fsError('EIO'))
+        },
+      })
+    await expect(copyVerified(src, destDir, 'C0001_gol.MP4', { openRead })).rejects.toMatchObject({
+      code: 'EIO',
+    })
+  })
+
+  it('surfaces the close error when there was no other error', async () => {
+    const src = await write(path.join(srcDir, 'C0001.MP4'), 'footage')
+    const realOpen = fsDefault.open.bind(fsDefault)
+    vi.spyOn(fsDefault, 'open').mockImplementation((async (p: string, ...rest: unknown[]) => {
+      const fh = await (realOpen as (...a: unknown[]) => Promise<fs.FileHandle>)(p, ...rest)
+      if (p.endsWith('.partial')) {
+        const realClose = fh.close.bind(fh)
+        fh.close = async (): Promise<void> => {
+          await realClose()
+          throw fsError('EIO')
+        }
+      }
+      return fh
+    }) as never)
+    syncBuiltinESMExports()
+    await expect(copyVerified(src, destDir, 'C0001_gol.MP4')).rejects.toMatchObject({ code: 'EIO' })
+  })
+
+  it('stops with an error (no further names tried) when the placeholder inode changes', async () => {
+    const src = await write(path.join(srcDir, 'C0001.MP4'), 'footage')
+    const realLstat = fsDefault.lstat.bind(fsDefault)
+    vi.spyOn(fsDefault, 'lstat').mockImplementation((async (p: string, o?: object) => {
+      const st = await realLstat(p, o as never)
+      return p.endsWith('C0001_gol.MP4') ? Object.assign(st, { ino: Number(st.ino) + 1 }) : st
+    }) as never)
+    syncBuiltinESMExports()
+    const linkFn = async (): Promise<void> => {
+      throw fsError('ENOTSUP')
+    }
+    await expect(copyVerified(src, destDir, 'C0001_gol.MP4', { linkFn })).rejects.toThrow(
+      /C0001_gol\.MP4 changed identity/,
+    )
+    // exactly one placeholder + the verified temp; no (2), (3) ... files
+    expect(await names(destDir)).toEqual(['.C0001_gol.MP4.partial', 'C0001_gol.MP4'])
+    expect(await fs.readFile(path.join(destDir, '.C0001_gol.MP4.partial'), 'utf8')).toBe('footage')
+  })
+
+  it('throws instead of looping forever when a write makes no progress', async () => {
+    const src = await write(path.join(srcDir, 'C0001.MP4'), 'footage')
+    const probe = await fs.open(src, 'r')
+    const proto = Object.getPrototypeOf(probe) as { write: unknown }
+    await probe.close()
+    vi.spyOn(proto as { write: () => Promise<unknown> }, 'write').mockResolvedValue({
+      bytesWritten: 0,
+      buffer: Buffer.alloc(0),
+    })
+    await expect(copyVerified(src, destDir, 'C0001_gol.MP4')).rejects.toThrow(/no progress/)
   })
 })
 

@@ -81,7 +81,13 @@ export class Journal {
     const run = this.queue.then(async () => {
       await fs.mkdir(path.dirname(this.file), { recursive: true })
       const line = `${this.needsLeadingNewline ? '\n' : ''}${JSON.stringify(e)}\n`
-      await fs.appendFile(this.file, line)
+      try {
+        await fs.appendFile(this.file, line)
+      } catch (err) {
+        // A partial write may have left a fragment: the next entry must start on a new line.
+        this.needsLeadingNewline = true
+        throw err
+      }
       this.needsLeadingNewline = false
       this.index(e)
     })

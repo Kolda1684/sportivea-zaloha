@@ -99,6 +99,7 @@ async function writeAll(fh: fs.FileHandle, buf: Buffer): Promise<void> {
   let off = 0
   while (off < buf.length) {
     const { bytesWritten } = await fh.write(buf, off, buf.length - off, null)
+    if (bytesWritten === 0) throw new Error('write made no progress (0 bytes written)')
     off += bytesWritten
   }
 }
@@ -161,16 +162,22 @@ async function claimFinalName(
   } finally {
     await placeholder.close()
   }
+  // Only rename over the placeholder if it is still the empty file this call created.
+  const st = await fs.lstat(finalPath)
+  if (st.ino !== ino || st.size !== 0) {
+    // Cannot prove the placeholder is still ours (e.g. unstable inode numbers on a virtual
+    // volume). Do not try further names; leave the placeholder and the verified temp in place.
+    throw new Error(
+      `placeholder ${finalPath} changed identity before rename; left in place, verified temp kept at ${tempPath}`,
+    )
+  }
   try {
-    // Only rename over the placeholder if it is still the empty file this call created.
-    const st = await fs.lstat(finalPath)
-    if (st.ino !== ino || st.size !== 0) return 'exists'
     await fs.rename(tempPath, finalPath)
   } catch (e) {
     // Undo our own claim: remove the placeholder only if it is still the empty file we created.
     try {
-      const st = await fs.lstat(finalPath)
-      if (st.ino === ino && st.size === 0) await fs.unlink(finalPath)
+      const now = await fs.lstat(finalPath)
+      if (now.ino === ino && now.size === 0) await fs.unlink(finalPath)
     } catch {
       // ignore
     }
@@ -218,6 +225,8 @@ export async function copyVerified(
   const { tempPath, fh } = await createTemp(destDir, desiredName)
   const counter = new HashingCounter()
   try {
+    let primary: unknown
+    let failed = false
     try {
       const sink = new Writable({
         write(chunk: Buffer, _enc, cb): void {
@@ -226,9 +235,17 @@ export async function copyVerified(
       })
       await pipeline(openRead(srcPath), counter, sink)
       await fh.sync()
-    } finally {
-      await fh.close()
+    } catch (e) {
+      failed = true
+      primary = e
     }
+    try {
+      await fh.close()
+    } catch (closeErr) {
+      // A close error must not replace the original (source) error and its code.
+      if (!failed) throw closeErr
+    }
+    if (failed) throw primary
   } catch (e) {
     // Source (or write) failure: the temp is this call's own, incomplete file.
     await removeOwnTemp(tempPath)
