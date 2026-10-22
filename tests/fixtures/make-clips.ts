@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ffmpegPath } from '../../src/core/bin'
 
-export type FixtureClips = { black: string; bright: string; halfDark: string }
+export type FixtureClips = { black: string; bright: string; halfDark: string; rotated: string }
 
 const cacheDir = join(dirname(fileURLToPath(import.meta.url)), '.cache')
 
@@ -29,6 +29,16 @@ async function make(name: string, args: string[]): Promise<string> {
   return out
 }
 
+/** 1280x720 coded clip with a display-rotation (90 deg) matrix, i.e. displayed as 720x1280 portrait. */
+async function makeRotated(bright: string): Promise<string> {
+  const out = join(cacheDir, 'rotated_90.mp4')
+  if (existsSync(out)) return out
+  const tmp = join(cacheDir, `tmp-${process.pid}-rotated_90.mp4`)
+  await run(['-display_rotation', '90', '-i', bright, '-c', 'copy', '-f', 'mp4', tmp])
+  await rename(tmp, out)
+  return out
+}
+
 /** Generates (once, cached) 1280x720 test clips: black 0.6 s, testsrc2 5 s, 0.6 s black then testsrc2 (1 s). */
 export async function ensureFixtureClips(): Promise<FixtureClips> {
   await mkdir(cacheDir, { recursive: true })
@@ -41,5 +51,5 @@ export async function ensureFixtureClips(): Promise<FixtureClips> {
       '-filter_complex', '[0:v][1:v]concat=n=2:v=1:a=0[v]', '-map', '[v]',
     ]),
   ])
-  return { black, bright, halfDark }
+  return { black, bright, halfDark, rotated: await makeRotated(bright) }
 }

@@ -36,6 +36,13 @@ describe('probeClip', () => {
     expect(meta.cameraModel).toBeNull()
   })
 
+  it('reports display dimensions for a rotated clip', async () => {
+    const meta = await probeClip(clips.rotated)
+    expect(meta.width).toBe(720)
+    expect(meta.height).toBe(1280)
+    expect(meta.width).toBeLessThan(meta.height)
+  })
+
   it('finds a Sony modelName in the file tail', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'probe-'))
     try {

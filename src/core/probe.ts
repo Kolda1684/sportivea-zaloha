@@ -12,7 +12,7 @@ export type ClipMeta = {
 }
 
 type ProbeJson = {
-  streams?: Array<{ codec_type?: string; width?: number; height?: number; avg_frame_rate?: string; r_frame_rate?: string; duration?: string }>
+  streams?: Array<{ codec_type?: string; width?: number; height?: number; tags?: Record<string, string>; side_data_list?: Array<{ rotation?: number | string }>; avg_frame_rate?: string; r_frame_rate?: string; duration?: string }>
   format?: { duration?: string; tags?: Record<string, string> }
 }
 
@@ -22,6 +22,16 @@ function parseRate(rate: string | undefined): number {
   const num = Number(n)
   const den = d === undefined ? 1 : Number(d)
   return den > 0 && Number.isFinite(num) ? num / den : 0
+}
+
+/** Display rotation in degrees from the Display Matrix side data, falling back to the legacy `rotate` tag. */
+function rotationOf(video: NonNullable<ProbeJson['streams']>[number]): number {
+  for (const sd of video.side_data_list ?? []) {
+    const r = Number(sd.rotation)
+    if (sd.rotation !== undefined && Number.isFinite(r)) return r
+  }
+  const legacy = Number(video.tags?.['rotate'])
+  return Number.isFinite(legacy) ? legacy : 0
 }
 
 const SNIFF_BYTES = 4 * 1024 * 1024
@@ -57,10 +67,12 @@ export async function probeClip(absPath: string): Promise<ClipMeta> {
   const created = json.format?.tags?.['creation_time']
   const createdDate = created ? new Date(created) : null
   const createdAt = createdDate && !Number.isNaN(createdDate.getTime()) ? createdDate : null
+  const quarterTurn = Math.abs(Math.round(rotationOf(video))) % 180 === 90
   return {
     durationS,
-    width: video.width,
-    height: video.height,
+    // Display dimensions: a clip with a +-90 degree matrix decodes as portrait.
+    width: quarterTurn ? video.height : video.width,
+    height: quarterTurn ? video.width : video.height,
     fps,
     createdAt,
     cameraModel: await sniffCameraModel(absPath),
