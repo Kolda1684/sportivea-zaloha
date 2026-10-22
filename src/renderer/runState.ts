@@ -167,3 +167,8 @@ export function progressOf(run: RunState): Progress {
 export function isActive(run: RunState): boolean {
   return run.phase === 'starting' || run.phase === 'queued' || run.phase === 'running'
 }
+
+/** Clips (never markers) whose classification failed. */
+export function countClassifyFailures(run: RunState): number {
+  return run.items.filter((i) => !i.marker && !i.classifyOk).length
+}

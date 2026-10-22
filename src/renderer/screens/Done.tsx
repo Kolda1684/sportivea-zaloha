@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import type { RunSummary } from '../../core/pipeline'
 import { UNCLASSIFIED } from '../../core/templates'
-import { baseName, formatCzk, plural } from '../format'
-import type { RunItem, RunState } from '../runState'
+import { baseName, classifyFailureMessage, formatCzk, plural } from '../format'
+import { countClassifyFailures, type RunItem, type RunState } from '../runState'
 import { ABORTED_MESSAGE, CARD_REMOVED_MESSAGE, FINAL_OK_MESSAGE, NOT_BACKED_UP_HEADING, VERIFY_FAILED_MESSAGE } from '../strings'
 
 type ManualEntry = { key: string; name: string; folder: string; original: string; reason: string }
@@ -72,6 +72,7 @@ export function Done({ run, summary, czkPerUsd, canRerun, onRerun, onClose }: Do
   const copiedClips = folders.reduce((sum, [, n]) => sum + n, 0)
   const manual = manualChecks(summary, run.items)
   const ok = summary.status === 'ok'
+  const failedClassify = countClassifyFailures(run)
 
   return (
     <section className="stack">
@@ -87,6 +88,13 @@ export function Done({ run, summary, czkPerUsd, canRerun, onRerun, onClose }: Do
           {summary.status === 'card_removed' && <p className="banner-text">{CARD_REMOVED_MESSAGE}</p>}
           {summary.status === 'verify_failed' && <p className="banner-text">{VERIFY_FAILED_MESSAGE}</p>}
         </div>
+      )}
+
+      {failedClassify > 0 && (
+        <p className="callout warn" role="status">
+          {classifyFailureMessage(failedClassify)}
+          {ok ? '. Záloha samotná je v pořádku.' : '.'}
+        </p>
       )}
 
       {summary.verifyFailed.length > 0 && (
@@ -174,7 +182,7 @@ export function Done({ run, summary, czkPerUsd, canRerun, onRerun, onClose }: Do
           </button>
         )}
         <button type="button" className={ok ? 'primary' : 'secondary'} onClick={onClose}>
-          {ok ? 'Hotovo' : 'Zavřít'}
+          Zavřít
         </button>
       </div>
     </section>
@@ -189,7 +197,7 @@ export function RunFailed({ run, canRerun, onRerun, onClose }: FailedProps) {
     <section className="stack">
       <div className="banner bad" role="alert">
         <h1>{NOT_BACKED_UP_HEADING}</h1>
-        <p className="banner-text">Záloha selhala: {run.failure ?? 'neznámá chyba'}</p>
+        <p className="banner-text">Něco se pokazilo: {run.failure ?? 'neznámá chyba'}</p>
         <p className="banner-text">Nic se nesmazalo. Zkus ji spustit znovu — nahraje se jen to, co chybí.</p>
       </div>
       <div className="actions">

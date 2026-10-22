@@ -80,3 +80,8 @@ export function plural(n: number, one: string, few: string, many: string): strin
   if (n === 1) return one
   return n >= 2 && n <= 4 ? few : many
 }
+
+/** Done-screen line for clips whose classification failed (they are in `_nezařazeno`, the backup itself is complete). */
+export function classifyFailureMessage(n: number): string {
+  return `${n} ${plural(n, 'klip', 'klipy', 'klipů')} se nepodařilo roztřídit — ${plural(n, 'je', 'jsou', 'jsou')} ve složce _nezařazeno`
+}

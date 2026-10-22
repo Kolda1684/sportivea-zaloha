@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { baseName, defaultEventName, formatBytes, formatCzk, formatDateRange, plural } from '../../src/renderer/format'
+import { baseName, defaultEventName, formatBytes, formatCzk, formatDateRange, plural, classifyFailureMessage } from '../../src/renderer/format'
 
 const NB = ' '
 
@@ -102,5 +102,13 @@ describe('plural', () => {
     expect(f(0)).toBe('klipů')
     expect(f(21)).toBe('klipů')
     expect(f(104)).toBe('klipů')
+  })
+})
+
+describe('classifyFailureMessage', () => {
+  it('names the count and the folder', () => {
+    expect(classifyFailureMessage(1)).toBe('1 klip se nepodařilo roztřídit — je ve složce _nezařazeno')
+    expect(classifyFailureMessage(3)).toBe('3 klipy se nepodařilo roztřídit — jsou ve složce _nezařazeno')
+    expect(classifyFailureMessage(8)).toBe('8 klipů se nepodařilo roztřídit — jsou ve složce _nezařazeno')
   })
 })

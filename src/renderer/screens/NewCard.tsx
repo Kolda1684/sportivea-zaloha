@@ -1,14 +1,16 @@
 import { useEffect, useId, useState } from 'react'
 import { parseRoster } from '../../core/roster'
 import type { CardDetected, Settings } from '../../shared/ipc-types'
+import { initialChoice, reconcileChoice, type EventChoice, type EventPreset } from '../eventChoice'
 import { defaultEventName, formatBytes, formatDateRange, plural } from '../format'
 
 export type StartForm = { eventName: string; isNew: boolean; templateId: string; rosterText: string }
 
 type Props = {
   card: CardDetected
-  preset: { eventName: string; isNew: boolean } | undefined
+  preset: EventPreset | undefined
   settings: Settings
+  hasKey: boolean
   /** Other cards waiting behind this one. */
   waiting: number
   /** Resolves to an error text, or null when the run was started. */
@@ -27,14 +29,13 @@ function nameProblem(name: string): string | null {
   return null
 }
 
-export function NewCard({ card, preset, settings, waiting, onStart, onCancel, onSettings, onOpenSettings }: Props) {
+export function NewCard({ card, preset, settings, hasKey, waiting, onStart, onCancel, onSettings, onOpenSettings }: Props) {
   const ids = { mode: useId(), existing: useId(), name: useId(), template: useId(), roster: useId(), team: useId(), text: useId() }
   const firstDate = card.firstDate !== null && !Number.isNaN(new Date(card.firstDate).getTime()) ? new Date(card.firstDate) : new Date()
 
   const [events, setEvents] = useState<string[] | null>(null)
-  const [mode, setMode] = useState<'existing' | 'new'>(preset && !preset.isNew ? 'existing' : 'new')
-  const [existing, setExisting] = useState(preset && !preset.isNew ? preset.eventName : '')
-  const [newName, setNewName] = useState(preset?.isNew ? preset.eventName : defaultEventName(firstDate))
+  const [choice, setChoice] = useState<EventChoice>(() => initialChoice(preset, defaultEventName(firstDate)))
+  const { mode, existing, newName } = choice
   const [templateId, setTemplateId] = useState(
     settings.templates.some((t) => t.id === settings.lastTemplateId) ? settings.lastTemplateId : (settings.templates[0]?.id ?? ''),
   )
@@ -49,8 +50,7 @@ export function NewCard({ card, preset, settings, waiting, onStart, onCancel, on
     void window.api.listEvents().then((list) => {
       if (!alive) return
       setEvents(list)
-      setExisting((current) => (current !== '' && list.includes(current) ? current : (list[0] ?? '')))
-      if (list.length === 0) setMode('new')
+      setChoice((current) => reconcileChoice(current, preset, list))
     })
     return () => {
       alive = false
@@ -65,7 +65,7 @@ export function NewCard({ card, preset, settings, waiting, onStart, onCancel, on
   const eventName = mode === 'new' ? newName.trim() : existing
   const problem = mode === 'new' ? nameProblem(newName) : existing === '' ? 'Vyber akci.' : null
   const noRoot = settings.rootDir === null
-  const canStart = !busy && !noRoot && problem === null && templateId !== ''
+  const canStart = !busy && !noRoot && hasKey && problem === null && templateId !== ''
 
   const submit = async (): Promise<void> => {
     if (!canStart) return
@@ -127,6 +127,15 @@ export function NewCard({ card, preset, settings, waiting, onStart, onCancel, on
         </div>
       )}
 
+      {!hasKey && (
+        <div className="callout warn">
+          <p>Chybí klíč ke Claude, bez něj se klipy nedají třídit. Zadej ho v nastavení.</p>
+          <button type="button" onClick={onOpenSettings}>
+            Otevřít nastavení
+          </button>
+        </div>
+      )}
+
       <form
         className="stack"
         onSubmit={(e) => {
@@ -143,7 +152,7 @@ export function NewCard({ card, preset, settings, waiting, onStart, onCancel, on
                 name={ids.mode}
                 checked={mode === 'existing'}
                 disabled={events === null || events.length === 0}
-                onChange={() => setMode('existing')}
+                onChange={() => setChoice((c) => ({ ...c, mode: 'existing' }))}
               />
               Existující akce
             </label>
@@ -152,7 +161,7 @@ export function NewCard({ card, preset, settings, waiting, onStart, onCancel, on
               aria-label="Existující akce"
               value={existing}
               disabled={mode !== 'existing'}
-              onChange={(e) => setExisting(e.target.value)}
+              onChange={(e) => setChoice((c) => ({ ...c, existing: e.target.value }))}
             >
               {(events ?? []).map((name) => (
                 <option key={name} value={name}>
@@ -164,7 +173,7 @@ export function NewCard({ card, preset, settings, waiting, onStart, onCancel, on
           {events !== null && events.length === 0 && !noRoot && <p className="muted small">Ve složce na Disku zatím žádná akce není.</p>}
           <div className="radio-row">
             <label>
-              <input type="radio" name={ids.mode} checked={mode === 'new'} onChange={() => setMode('new')} />
+              <input type="radio" name={ids.mode} checked={mode === 'new'} onChange={() => setChoice((c) => ({ ...c, mode: 'new' }))} />
               Nová akce
             </label>
             <input
@@ -173,7 +182,7 @@ export function NewCard({ card, preset, settings, waiting, onStart, onCancel, on
               aria-label="Název nové akce"
               value={newName}
               disabled={mode !== 'new'}
-              onChange={(e) => setNewName(e.target.value)}
+              onChange={(e) => setChoice((c) => ({ ...c, newName: e.target.value }))}
               spellCheck={false}
             />
           </div>

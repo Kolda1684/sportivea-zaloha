@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { RunSummary } from '../../src/core/pipeline'
 import type { ClassifyResult } from '../../src/core/classifier'
 import type { RunUiEvent } from '../../src/shared/ipc-types'
-import { newRun, progressOf, reduceRun, type RunState } from '../../src/renderer/runState'
+import { countClassifyFailures, newRun, progressOf, reduceRun, type RunState } from '../../src/renderer/runState'
 
 const EVENT_DIR = '/Drive/Akce/2026-10-20 Istanbul'
 
@@ -178,5 +178,19 @@ describe('waiting for disk space', () => {
   it('is cleared when the run ends', () => {
     const s = apply(start(), { type: 'waiting_space', needed: 10, free: 1 }, { type: 'done', summary: summary({ status: 'aborted' }) })
     expect(s.waitingSpace).toBe(false)
+  })
+})
+
+describe('countClassifyFailures', () => {
+  it('counts failed classifications but not markers or successes', () => {
+    const failed: ClassifyResult = { category: '_nezařazeno', description: '', confidence: 'low', ok: false, error: 'x' }
+    const s = apply(
+      start(),
+      { type: 'classified', relPath: 'A.MP4', result: failed, top: false, marker: false },
+      { type: 'classified', relPath: 'B.MP4', result: failed, top: true, marker: false },
+      { type: 'classified', relPath: 'C.MP4', result: ok('Zápas'), top: false, marker: false },
+      { type: 'classified', relPath: 'M.MP4', result: ok('_nezařazeno', ''), top: false, marker: true },
+    )
+    expect(countClassifyFailures(s)).toBe(2)
   })
 })

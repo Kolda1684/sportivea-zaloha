@@ -200,6 +200,18 @@ describe('runCard', () => {
     expect(rows.find((r) => r[0] === 'C0003.MP4')?.[3]).toContain('API down')
   })
 
+  it('keeps the TOP marking of a TOP clip whose classification failed', { timeout: 120_000 }, async () => {
+    const failed: ClassifyResult = { category: '_nezařazeno', description: '', confidence: 'low', ok: false, error: 'API down' }
+    const { summary } = await run({ classifier: fakeClassifier({ 'C0001.MP4': failed }) })
+    const files = media(await listFiles(eventDir))
+    expect(files).toContain('_nezařazeno/C0001_TOP.MP4')
+    expect(files).not.toContain('_nezařazeno/C0001.MP4')
+    expect(files).toContain('Zápas/C0003_sance.MP4') // non-TOP clips are unaffected
+    expect(summary.top).toBe(1)
+    const rows = await readCsv(summary.csvPath)
+    expect(rows.find((r) => r[0] === 'C0001.MP4')?.[1]).toBe('C0001_TOP.MP4')
+  })
+
   it('reports low-confidence clips', { timeout: 120_000 }, async () => {
     const low: ClassifyResult = { category: 'Zápas', description: 'sance', confidence: 'low', ok: true }
     const { summary } = await run({ classifier: fakeClassifier({ 'C0003.MP4': low }) })

@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import type { Template } from '../../core/templates'
 import type { Model, Settings } from '../../shared/ipc-types'
+import { templatesProblem } from '../templates'
 
 type Props = {
   settings: Settings
@@ -15,31 +16,6 @@ const MODELS: ReadonlyArray<{ value: Model; label: string }> = [
   { value: 'claude-opus-5-5', label: 'Opus 5.5 — nejpřesnější, dražší' },
   { value: 'claude-haiku-5-5', label: 'Haiku 5.5 — nejlevnější' },
 ]
-
-function plainNameProblem(name: string): string | null {
-  const n = name.trim()
-  if (n === '') return 'Název nesmí být prázdný.'
-  if (/[\\/]/.test(n) || n === '.' || n === '..') return 'Název nesmí obsahovat lomítka.'
-  return null
-}
-
-/** First problem in the edited templates, or null when they can be saved. */
-export function templatesProblem(templates: Template[]): string | null {
-  if (templates.length === 0) return 'Musí zůstat aspoň jedna šablona.'
-  for (const t of templates) {
-    if (t.name.trim() === '') return 'Každá šablona potřebuje název.'
-    if (t.categories.length === 0) return `Šablona „${t.name}“ musí mít aspoň jednu kategorii.`
-    const seen = new Set<string>()
-    for (const c of t.categories) {
-      const problem = plainNameProblem(c.name)
-      if (problem !== null) return `Šablona „${t.name}“: ${problem}`
-      const key = c.name.trim().toLocaleLowerCase('cs')
-      if (seen.has(key)) return `Šablona „${t.name}“: kategorie „${c.name.trim()}“ je tam dvakrát.`
-      seen.add(key)
-    }
-  }
-  return null
-}
 
 function cleanTemplates(templates: Template[]): Template[] {
   return templates.map((t) => ({
@@ -277,7 +253,7 @@ function TemplateEditor({ settings, onSettings }: Pick<Props, 'settings' | 'onSe
               onChange={(e) => edit((t) => ({ ...t, categories: t.categories.map((x, i) => (i === ci ? { ...x, name: e.target.value } : x)) }))}
             />
             <textarea
-              rows={2}
+              rows={4}
               aria-label={`Kategorie ${ci + 1}: popis`}
               value={c.hint}
               placeholder="Co do téhle složky patří"

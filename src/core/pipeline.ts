@@ -493,6 +493,10 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
       } else {
         notes.push('klasifikace selhala')
       }
+      // a TOP clip keeps its marking even when it could not be classified: `<base>_TOP.<ext>`
+      if (p.top && desiredName === fileName) {
+        desiredName = buildName({ base, description: '', top: true, ext: clip?.ext ?? '' })
+      }
       if (result.ok && result.confidence === 'low') notes.push('nízká jistota')
     }
 

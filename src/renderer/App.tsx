@@ -176,6 +176,7 @@ export function App() {
         card={first.card}
         preset={first.preset}
         settings={settings}
+        hasKey={hasKey}
         waiting={pending.length - 1}
         onStart={(form) => startRun(first.card, form)}
         onCancel={() => {
