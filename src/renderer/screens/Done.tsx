@@ -159,6 +159,11 @@ export function Done({ run, summary, czkPerUsd, canRerun, onRerun, onClose }: Do
           <li>
             <span className="strong">Černé značky</span> (nekopírují se): {summary.markers}
           </li>
+          {summary.orphanMarkers > 0 && (
+            <li>
+              <span className="strong">Osiřelé značky</span> (bez TOP záběru, v CSV „bez TOP“): {summary.orphanMarkers}
+            </li>
+          )}
           {summary.others > 0 && (
             <li>
               <span className="strong">Ostatní soubory</span> (složka _ostatni): {summary.others}

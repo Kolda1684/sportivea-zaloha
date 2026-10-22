@@ -34,6 +34,12 @@ function renderDone(s: RunSummary): string {
 }
 
 describe('Done', () => {
+  it('shows orphan markers (a marker without a TOP clip before it)', () => {
+    const html = renderDone(summary({ markers: 3, orphanMarkers: 2 }))
+    expect(html).toMatch(/Osiřelé značky<\/span> \(bez TOP záběru, v CSV „bez TOP“\): 2/)
+    expect(renderDone(summary({ markers: 1, orphanMarkers: 0 }))).not.toContain('Osiřelé')
+  })
+
   it('says that the AI was unavailable and the rest was backed up unsorted', () => {
     expect(AI_UNAVAILABLE_MESSAGE).toBe('AI nedostupná — zbytek zálohován bez třídění.')
     expect(renderDone(summary({ ai: 'unavailable', unclassified: 2 }))).toContain(AI_UNAVAILABLE_MESSAGE)
