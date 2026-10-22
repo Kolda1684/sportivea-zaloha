@@ -8,7 +8,7 @@ import { ffmpegPath } from '../../src/core/bin'
 import type { Classifier, ClassifyInput, ClassifyResult } from '../../src/core/classifier'
 import { sha256File } from '../../src/core/copy'
 import { Journal } from '../../src/core/journal'
-import { runCard, type RunEvent, type RunOptions, type RunSummary } from '../../src/core/pipeline'
+import { ANALYSIS_FAILED, runCard, type RunEvent, type RunOptions, type RunSummary } from '../../src/core/pipeline'
 import { DEFAULT_TEMPLATES } from '../../src/core/templates'
 import { ensureFixtureClips } from '../fixtures/make-clips'
 
@@ -109,7 +109,18 @@ async function baseOptions(over: Partial<RunOptions> = {}): Promise<RunOptions> 
 async function run(over: Partial<RunOptions> = {}, signal?: AbortSignal): Promise<{ summary: RunSummary; events: RunEvent[] }> {
   const events: RunEvent[] = []
   const summary = await runCard(await baseOptions(over), (e) => events.push(e), signal)
+  await expectNoAnalysisFailure(summary)
   return { summary, events }
+}
+
+/**
+ * None of these tests makes probing / frame sampling fail on purpose. If a clip still lands in
+ * _nezařazeno with this note, ffprobe/ffmpeg failed transiently (e.g. timed out under load, Ruling 20).
+ */
+async function expectNoAnalysisFailure(summary: RunSummary): Promise<void> {
+  const texts = [...summary.verifyFailed]
+  if (summary.csvPath !== '') texts.push(await fs.readFile(summary.csvPath, 'utf8'))
+  expect(texts.join('\n'), 'clip analysis (ffprobe/ffmpeg) failed in a test that does not provoke it').not.toContain(ANALYSIS_FAILED)
 }
 
 async function listFiles(dir: string, rel = ''): Promise<string[]> {
@@ -346,6 +357,7 @@ describe('runCard', () => {
       },
       controller.signal,
     )
+    await expectNoAnalysisFailure(summary)
     expect(media(await listFiles(eventDir))).toEqual(['Zápas/C0001_TOP_gol.MP4'])
     expect(summary.status).toBe('aborted')
     const rows = await readCsv(summary.csvPath)

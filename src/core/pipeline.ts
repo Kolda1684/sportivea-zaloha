@@ -67,6 +67,8 @@ const DEFAULT_CONCURRENCY = 4
 /** Probing and frame sampling read the card heavily (frameLumas already runs 3 ffmpeg at once). */
 const ANALYSIS_CONCURRENCY = 2
 const NOT_COPIED = '(nekopírováno)'
+/** Note prefix when a clip could not be probed / sampled / turned into a contact sheet. */
+export const ANALYSIS_FAILED = 'náhled klipu selhal'
 const SOURCE_GONE_CODES: ReadonlySet<string> = new Set(['ENOENT', 'EIO', 'ENXIO'])
 
 function errCode(e: unknown): string | undefined {
@@ -356,14 +358,14 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
         if (!clip) return
         let result: ClassifyResult | undefined
         if (clip.analysisError !== undefined || !clip.meta) {
-          result = failure(`náhled klipu selhal: ${clip.analysisError ?? 'neznámá chyba'}`)
+          result = failure(`${ANALYSIS_FAILED}: ${clip.analysisError ?? 'neznámá chyba'}`)
         } else {
           let sheet: Buffer | undefined
           try {
             sheet = await contactSheet(file.absPath, clip.meta.durationS)
           } catch (e) {
             if (isCardGone(e)) return markCardRemoved()
-            result = failure(`náhled klipu selhal: ${errMessage(e)}`)
+            result = failure(`${ANALYSIS_FAILED}: ${errMessage(e)}`)
           }
           if (sheet !== undefined) {
             try {
@@ -380,7 +382,7 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
             }
           }
         }
-        result ??= failure('náhled klipu selhal')
+        result ??= failure(ANALYSIS_FAILED)
         results.set(file.relPath, result)
         emit({ type: 'classified', relPath: file.relPath, result, top: topSet.has(file.relPath), marker: false })
       },
