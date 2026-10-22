@@ -7,6 +7,7 @@ import { registerIpc } from './ipc'
 import { Runner, type Notice } from './runner'
 import { loadApiKey } from './secrets'
 import { loadSettings } from './settings'
+import { checkTools } from './tools'
 import { watchVolumes } from './watcher'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
@@ -117,14 +118,20 @@ if (!app.requestSingleInstanceLock()) {
     const userData = app.getPath('userData')
     const settingsFile = join(userData, 'settings.json')
 
+    // once per start: without working ffprobe/ffmpeg no clip can be analysed, so no run may start
+    const tools = checkTools({ log })
+    void tools.then((ok) => log(`tools ok=${String(ok)}`))
+    const toolsOk = (): Promise<boolean> => tools
+
     const runner = new Runner({
       getSettings: () => loadSettings(settingsFile),
       getApiKey: loadApiKey,
       journalFile: join(userData, 'journal.jsonl'),
       send: (payload: RunEventPayload) => sendToRenderer(mainWindow, IPC.runEvent, payload),
       notify: showNotification,
+      toolsOk,
     })
-    registerIpc({ window: () => mainWindow, runner, settingsFile })
+    registerIpc({ window: () => mainWindow, runner, settingsFile, toolsOk })
 
     createWindow()
     app.on('activate', () => {

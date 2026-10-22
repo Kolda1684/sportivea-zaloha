@@ -41,13 +41,33 @@ export function ffmpegPath(): string {
   return unpackedPath(resolved)
 }
 
-export function ffprobePath(): string {
-  const override = process.env['TRIDENI_FFPROBE']
-  if (override) return override
-  // ffprobe-static's darwin/arm64 folder holds an x86_64 binary, so the
-  // postinstall script puts a real arm64 ffprobe into resources/bin/.
+/** True inside the packaged app: the bundled main process runs from app.asar. */
+function isPackaged(): boolean {
+  return fileURLToPath(import.meta.url).includes(`app.asar${sep}`)
+}
+
+export type FfprobeContext = { packaged: boolean; resourcesPath: string | undefined }
+
+/**
+ * Packaged: only `<resources>/bin/ffprobe` (ffprobe-static is excluded from the package), else a clear error.
+ * Development: `resources/bin/ffprobe` up the tree, then ffprobe-static.
+ */
+export function locateFfprobe(ctx: FfprobeContext): string {
+  if (ctx.packaged) {
+    const packaged = ctx.resourcesPath ? join(ctx.resourcesPath, 'bin', 'ffprobe') : null
+    if (packaged !== null && existsSync(packaged)) return packaged
+    throw new Error(`ffprobe is missing from the app bundle (expected resources/bin/ffprobe${packaged ? ` at ${packaged}` : ''})`)
+  }
   const bundled = bundledResource('ffprobe')
   if (bundled) return bundled
   const { path } = nodeRequire('ffprobe-static') as { path: string }
   return unpackedPath(path)
+}
+
+export function ffprobePath(): string {
+  const override = process.env['TRIDENI_FFPROBE']
+  if (override) return override
+  // ffprobe-static's darwin/arm64 folder holds an x86_64 binary, so scripts/bundle-ffprobe.mjs (run by
+  // `npm install` and `npm run app`) puts a self-contained arm64 ffprobe into resources/bin/.
+  return locateFfprobe({ packaged: isPackaged(), resourcesPath: (process as ProcessWithResources).resourcesPath })
 }

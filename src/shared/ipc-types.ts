@@ -27,6 +27,7 @@ export const IPC = {
   apiKeySet: 'apikey:set',
   apiKeyHas: 'apikey:has',
   openFolder: 'shell:openFolder',
+  toolsOk: 'tools:ok',
 } as const
 
 /** Argument of `card:pickFolder`: which folder the dialog is for. */
@@ -82,4 +83,6 @@ export type Api = {
   hasApiKey(): Promise<boolean>
   /** Reveals a folder inside the root folder in Finder. Resolves to an error text, or '' on success. */
   openFolder(path: string): Promise<string>
+  /** false: ffprobe/ffmpeg did not run at startup — the app is broken and refuses to start runs. */
+  toolsOk(): Promise<boolean>
 }

@@ -12,6 +12,8 @@ export type IpcContext = {
   window(): BrowserWindow | null
   runner: Runner
   settingsFile: string
+  /** Startup check of ffprobe/ffmpeg (run once). */
+  toolsOk(): Promise<boolean>
 }
 
 const purposeSchema = z.enum(['card', 'root'])
@@ -81,6 +83,11 @@ export function registerIpc(ctx: IpcContext): void {
   ipcMain.handle(
     IPC.apiKeyHas,
     guarded(async (): Promise<boolean> => (await loadApiKey()) !== null),
+  )
+
+  ipcMain.handle(
+    IPC.toolsOk,
+    guarded(async (): Promise<boolean> => ctx.toolsOk()),
   )
 
   ipcMain.handle(

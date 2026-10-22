@@ -5,13 +5,29 @@
 // do not exist on the office Mac. This script copies ffprobe and every non-system dylib it
 // depends on (recursively, via `otool -L`), rewrites all references to @loader_path and
 // ad-hoc re-signs the result. Run from postinstall and before packaging (`npm run app`).
-// Usage: node scripts/bundle-ffprobe.mjs   (env TRIDENI_FFPROBE_SOURCE overrides the source)
+// Usage: node scripts/bundle-ffprobe.mjs [--require]   (env TRIDENI_FFPROBE_SOURCE overrides the source)
+//   default (postinstall): when no arm64 ffprobe can be bundled, warn and exit 0 so `npm install` still works.
+//   --require (`npm run app`): the same situations exit 1 — a package must never ship without ffprobe.
 import { execFileSync } from 'node:child_process'
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readdirSync, realpathSync, rmSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-if (process.platform !== 'darwin' || process.arch !== 'arm64') process.exit(0)
+const required = process.argv.includes('--require')
+
+/** Cannot bundle: a warning for postinstall, a hard failure for packaging. */
+function cannotBundle(message) {
+  if (required) {
+    console.error(`bundle-ffprobe: ${message}. The app cannot be packaged without a bundled arm64 ffprobe.`)
+    process.exit(1)
+  }
+  console.warn(`bundle-ffprobe: ${message}; skipping`)
+  process.exit(0)
+}
+
+if (process.platform !== 'darwin' || process.arch !== 'arm64') {
+  cannotBundle(`this host is ${process.platform}/${process.arch}, an arm64 Mac is needed`)
+}
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const binDir = join(root, 'resources', 'bin')
@@ -41,14 +57,12 @@ function dependencies(file) {
 }
 
 if (!existsSync(source)) {
-  console.warn(`bundle-ffprobe: ${source} not found; install Homebrew ffmpeg (brew install ffmpeg) for an arm64 ffprobe`)
-  process.exit(0)
+  cannotBundle(`${source} not found; install Homebrew ffmpeg (brew install ffmpeg) for an arm64 ffprobe`)
 }
 const realSource = realpathSync(source)
 const kind = run('file', ['-b', realSource])
 if (!kind.includes('arm64')) {
-  console.warn(`bundle-ffprobe: ${realSource} is not arm64 (${kind.trim()}); skipping`)
-  process.exit(0)
+  cannotBundle(`${realSource} is not arm64 (${kind.trim()})`)
 }
 
 rmSync(binDir, { recursive: true, force: true })

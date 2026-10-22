@@ -6,6 +6,7 @@ export const ABORTED_MESSAGE = 'Třídění bylo přerušeno. Karta NENÍ celá 
 export const CARD_REMOVED_MESSAGE = 'Karta byla odpojena. Nic se nesmazalo — zasuň ji znovu a spusť znovu, nahraje se jen zbytek.'
 export const VERIFY_FAILED_MESSAGE = 'Tyto soubory se nepodařilo ověřit. Karta NENÍ zálohovaná.'
 export const WAITING_SPACE_MESSAGE = 'Čekám, až Google Drive uvolní místo na disku…'
+export const TOOLS_MISSING_MESSAGE = 'Chybí nástroj ffprobe/ffmpeg — aplikace je poškozená, kontaktuj Jana.'
 export const NOT_BACKED_UP_HEADING = 'Pozor — karta NENÍ celá zálohovaná'
 export const AI_UNAVAILABLE_MESSAGE = 'AI nedostupná — zbytek zálohován bez třídění.'
 export const BACKUP_ONLY_HINT = 'Bez API klíče: vše se zálohuje do _nezařazeno, černé značky a TOP záběry se pořád poznají.'

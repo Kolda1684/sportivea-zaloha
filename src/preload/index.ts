@@ -31,6 +31,7 @@ const api: Api = {
   setApiKey: (key) => ipcRenderer.invoke(IPC.apiKeySet, key) as Promise<Result>,
   hasApiKey: () => ipcRenderer.invoke(IPC.apiKeyHas) as Promise<boolean>,
   openFolder: (path) => ipcRenderer.invoke(IPC.openFolder, path) as Promise<string>,
+  toolsOk: () => ipcRenderer.invoke(IPC.toolsOk) as Promise<boolean>,
 }
 
 contextBridge.exposeInMainWorld('api', api)

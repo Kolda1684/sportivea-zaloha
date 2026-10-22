@@ -12,6 +12,7 @@ import { JobQueue } from './queue'
 export const FINAL_OK_MESSAGE =
   'Zapsáno a ověřeno. Kartu můžeš vytáhnout. Drive dokončuje upload, kartu formátuj až po jeho dokončení (ikona Drive v liště).'
 export const NOT_BACKED_UP = 'Karta ještě NENÍ zálohovaná'
+export const TOOLS_MISSING = 'Chybí nástroj ffprobe/ffmpeg — aplikace je poškozená, kontaktuj Jana.'
 
 const requestSchema = z.object({
   cardRoot: z.string().min(1).max(4096),
@@ -34,6 +35,8 @@ export type RunnerDeps = {
   makeClassifier?(apiKey: string, model: string): Classifier
   /** Defaults to the real pipeline; injectable for tests. */
   run?: typeof runCard
+  /** Result of the startup check of ffprobe/ffmpeg; runs are refused when false. Default: assumed ok. */
+  toolsOk?(): Promise<boolean>
 }
 
 /** Notification text for a finished (or failed) run. */
@@ -111,6 +114,7 @@ export class Runner {
     const parsed = requestSchema.safeParse(raw)
     if (!parsed.success) return { ok: false, error: 'Neplatný požadavek na zálohu.' }
     const req: RunStartRequest = parsed.data
+    if (this.deps.toolsOk && !(await this.deps.toolsOk())) return { ok: false, error: TOOLS_MISSING }
     const eventName = req.eventName.trim()
     const cardRoot = path.resolve(req.cardRoot)
 

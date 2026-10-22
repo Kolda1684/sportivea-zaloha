@@ -6,7 +6,7 @@ import { DEFAULT_TEMPLATES } from '../../src/core/templates'
 import type { CardDetected, Settings } from '../../src/shared/ipc-types'
 import { Done } from '../../src/renderer/screens/Done'
 import { NewCard } from '../../src/renderer/screens/NewCard'
-import { AI_UNAVAILABLE_MESSAGE, BACKUP_ONLY_HINT, NO_AI_DONE_MESSAGE } from '../../src/renderer/strings'
+import { AI_UNAVAILABLE_MESSAGE, BACKUP_ONLY_HINT, NO_AI_DONE_MESSAGE, TOOLS_MISSING_MESSAGE } from '../../src/renderer/strings'
 
 const summary = (patch: Partial<RunSummary> = {}): RunSummary => ({
   perFolder: { Zápas: 2 },
@@ -66,13 +66,14 @@ const settings: Settings = {
   czkPerUsd: 23,
 }
 
-function renderNewCard(hasKey: boolean): string {
+function renderNewCard(hasKey: boolean, toolsOk = true): string {
   return renderToStaticMarkup(
     <NewCard
       card={card}
       preset={undefined}
       settings={settings}
       hasKey={hasKey}
+      toolsOk={toolsOk}
       waiting={0}
       onStart={async () => null}
       onCancel={() => {}}
@@ -89,6 +90,15 @@ describe('NewCard', () => {
     expect(BACKUP_ONLY_HINT).toBe('Bez API klíče: vše se zálohuje do _nezařazeno, černé značky a TOP záběry se pořád poznají.')
     expect(html).toContain(BACKUP_ONLY_HINT)
     expect(html).toMatch(/<button type="button" class="primary big"[^>]*>Zálohovat bez třídění<\/button>/)
+  })
+
+  it('refuses to start when ffprobe/ffmpeg are missing', () => {
+    expect(TOOLS_MISSING_MESSAGE).toBe('Chybí nástroj ffprobe/ffmpeg — aplikace je poškozená, kontaktuj Jana.')
+    const withKey = renderNewCard(true, false)
+    expect(withKey).toContain(TOOLS_MISSING_MESSAGE)
+    expect(withKey).toMatch(/<button type="submit" class="primary big" disabled="">Start<\/button>/)
+    expect(renderNewCard(false, false)).toMatch(/<button type="button" class="primary big" disabled="">Zálohovat bez třídění<\/button>/)
+    expect(renderNewCard(true, true)).not.toContain(TOOLS_MISSING_MESSAGE)
   })
 
   it('shows only the normal start with an API key', () => {

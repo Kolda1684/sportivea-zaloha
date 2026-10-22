@@ -7,6 +7,7 @@ import { Progress } from './screens/Progress'
 import { SettingsScreen } from './screens/Settings'
 import { addRecent, loadRecent, type RecentRun } from './recent'
 import { isActive, newRun, reduceRun, type RunState } from './runState'
+import { TOOLS_MISSING_MESSAGE } from './strings'
 
 type View = { name: 'idle' } | { name: 'newcard' } | { name: 'run'; id: string } | { name: 'settings' }
 export type Pending = { card: CardDetected; preset?: { eventName: string; isNew: boolean } }
@@ -31,6 +32,8 @@ function joinPath(dir: string, name: string): string {
 export function App() {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [hasKey, setHasKey] = useState(false)
+  /** null until the startup check of ffprobe/ffmpeg has answered. */
+  const [toolsOk, setToolsOk] = useState<boolean | null>(null)
   const [view, setView] = useState<View>({ name: 'idle' })
   const [pending, setPending] = useState<Pending[]>([])
   const [runs, dispatch] = useReducer(runsReducer, [])
@@ -50,6 +53,17 @@ export function App() {
   useEffect(() => {
     void reloadSettings()
   }, [reloadSettings])
+
+  useEffect(() => {
+    let alive = true
+    void window.api.toolsOk().then(
+      (ok) => alive && setToolsOk(ok),
+      () => alive && setToolsOk(false),
+    )
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const addPending = useCallback((entry: Pending) => {
     setCards((c) => ({ ...c, [entry.card.root]: entry.card }))
@@ -184,6 +198,7 @@ export function App() {
         preset={first.preset}
         settings={settings}
         hasKey={hasKey}
+        toolsOk={toolsOk !== false}
         waiting={pending.length - 1}
         onStart={(form) => startRun(first.card, form)}
         onCancel={() => {
@@ -246,7 +261,14 @@ export function App() {
           </button>
         )}
       </header>
-      <main className="content">{body}</main>
+      <main className="content">
+        {toolsOk === false && (
+          <p className="callout bad" role="alert">
+            {TOOLS_MISSING_MESSAGE}
+          </p>
+        )}
+        {body}
+      </main>
     </div>
   )
 }

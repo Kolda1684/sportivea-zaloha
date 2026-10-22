@@ -11,7 +11,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "eval": "tsx scripts/eval.ts",
-    "app": "node scripts/bundle-ffprobe.mjs && electron-vite build && electron-packager . \"Trideni karet\" --platform=darwin --arch=arm64 --out=dist --overwrite --asar.unpackDir=\"node_modules/ffmpeg-static\" --extra-resource=resources/bin --ignore=\"^/(src|tests|docs|scripts|resources|tsconfig.*|electron\\.vite\\.config\\.ts|vitest\\.config\\.ts|\\.gitignore|\\.env.*|CLAUDE\\.md|node_modules/\\.vite|node_modules/ffprobe-static/bin|\\.superpowers|eval-results|dist)\"",
+    "app": "node scripts/bundle-ffprobe.mjs --require && electron-vite build && electron-packager . \"Trideni karet\" --platform=darwin --arch=arm64 --out=dist --overwrite --asar.unpackDir=\"node_modules/ffmpeg-static\" --extra-resource=resources/bin --ignore=\"^/(src|tests|docs|scripts|resources|tsconfig.*|electron\\.vite\\.config\\.ts|vitest\\.config\\.ts|\\.gitignore|\\.env.*|CLAUDE\\.md|node_modules/\\.vite|node_modules/ffprobe-static/bin|\\.superpowers|eval-results|dist)\"",
     "postinstall": "node scripts/bundle-ffprobe.mjs"
   },
   "dependencies": {

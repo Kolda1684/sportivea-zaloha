@@ -3,7 +3,7 @@ import { parseRoster } from '../../core/roster'
 import type { CardDetected, Settings } from '../../shared/ipc-types'
 import { initialChoice, reconcileChoice, type EventChoice, type EventPreset } from '../eventChoice'
 import { defaultEventName, formatBytes, formatDateRange, plural } from '../format'
-import { BACKUP_ONLY_HINT } from '../strings'
+import { BACKUP_ONLY_HINT, TOOLS_MISSING_MESSAGE } from '../strings'
 
 /** `sort: false` = back up without the AI (no API key): everything goes to `_nezařazeno`. */
 export type StartForm = { eventName: string; isNew: boolean; templateId: string; rosterText: string; sort: boolean }
@@ -13,6 +13,8 @@ type Props = {
   preset: EventPreset | undefined
   settings: Settings
   hasKey: boolean
+  /** false: ffprobe/ffmpeg did not run at startup; nothing can be started. */
+  toolsOk: boolean
   /** Other cards waiting behind this one. */
   waiting: number
   /** Resolves to an error text, or null when the run was started. */
@@ -31,7 +33,7 @@ function nameProblem(name: string): string | null {
   return null
 }
 
-export function NewCard({ card, preset, settings, hasKey, waiting, onStart, onCancel, onSettings, onOpenSettings }: Props) {
+export function NewCard({ card, preset, settings, hasKey, toolsOk, waiting, onStart, onCancel, onSettings, onOpenSettings }: Props) {
   const ids = { mode: useId(), existing: useId(), name: useId(), template: useId(), roster: useId(), team: useId(), text: useId() }
   const firstDate = card.firstDate !== null && !Number.isNaN(new Date(card.firstDate).getTime()) ? new Date(card.firstDate) : new Date()
 
@@ -67,7 +69,7 @@ export function NewCard({ card, preset, settings, hasKey, waiting, onStart, onCa
   const eventName = mode === 'new' ? newName.trim() : existing
   const problem = mode === 'new' ? nameProblem(newName) : existing === '' ? 'Vyber akci.' : null
   const noRoot = settings.rootDir === null
-  const formReady = !busy && !noRoot && problem === null && templateId !== ''
+  const formReady = toolsOk && !busy && !noRoot && problem === null && templateId !== ''
   const canStart = formReady && hasKey
   const canBackupOnly = formReady && !hasKey
 
@@ -121,6 +123,12 @@ export function NewCard({ card, preset, settings, hasKey, waiting, onStart, onCa
         </dl>
         {waiting > 0 && <p className="muted small">Za touhle kartou čeká ještě {waiting} {plural(waiting, 'další', 'další', 'dalších')}.</p>}
       </div>
+
+      {!toolsOk && (
+        <p className="callout bad" role="alert">
+          {TOOLS_MISSING_MESSAGE}
+        </p>
+      )}
 
       {noRoot && (
         <div className="callout warn">

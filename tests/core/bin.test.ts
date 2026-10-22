@@ -1,8 +1,13 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, readdirSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { ffmpegPath, ffprobePath } from '../../src/core/bin'
+import { ffmpegPath, ffprobePath, locateFfprobe } from '../../src/core/bin'
+
+const probe = ffprobePath()
+const libDir = join(dirname(probe), 'lib')
+const isSystem = (ref: string): boolean => ref.startsWith('/usr/lib/') || ref.startsWith('/System/')
 
 describe('bundled binaries', () => {
   it('bundled ffmpeg and ffprobe run', () => {
@@ -21,14 +26,48 @@ describe('bundled binaries', () => {
     }
   })
 
-  it('bundled ffprobe and its dylibs do not reference Homebrew', () => {
-    const probe = ffprobePath()
-    const libDir = join(dirname(probe), 'lib')
-    if (!existsSync(libDir)) return // dev override / no bundle: nothing to check
+  // dev override / no bundle (e.g. not an arm64 Mac): nothing to check
+  it.skipIf(!existsSync(libDir))('bundled ffprobe and its dylibs reference only system libraries or @loader_path', () => {
     const files = [probe, ...readdirSync(libDir).map((name) => join(libDir, name))]
     for (const file of files) {
       const refs = execFileSync('otool', ['-L', file], { encoding: 'utf8' })
-      expect(refs, file).not.toContain('/opt/homebrew')
+        .split('\n')
+        .slice(1) // the first line is the file itself
+        .map((line) => /^\t(\S.*?) \(compatibility version/.exec(line)?.[1])
+        .filter((ref): ref is string => ref !== undefined)
+      expect(refs.length, file).toBeGreaterThan(0)
+      for (const ref of refs) {
+        if (isSystem(ref)) continue
+        expect(ref, `${file} references ${ref}`).toMatch(/^@loader_path\//)
+      }
     }
+  })
+})
+
+describe('locateFfprobe', () => {
+  it('uses resources/bin/ffprobe of the packaged app', () => {
+    const resources = mkdtempSync(join(tmpdir(), 'trideni-resources-'))
+    try {
+      mkdirSync(join(resources, 'bin'))
+      writeFileSync(join(resources, 'bin', 'ffprobe'), '')
+      chmodSync(join(resources, 'bin', 'ffprobe'), 0o755)
+      expect(locateFfprobe({ packaged: true, resourcesPath: resources })).toBe(join(resources, 'bin', 'ffprobe'))
+    } finally {
+      rmSync(resources, { recursive: true, force: true })
+    }
+  })
+
+  it('fails clearly in a packaged app without the bundled ffprobe (no fallback to ffprobe-static)', () => {
+    const resources = mkdtempSync(join(tmpdir(), 'trideni-resources-'))
+    try {
+      expect(() => locateFfprobe({ packaged: true, resourcesPath: resources })).toThrow(/ffprobe.*resources\/bin/)
+      expect(() => locateFfprobe({ packaged: true, resourcesPath: undefined })).toThrow(/ffprobe/)
+    } finally {
+      rmSync(resources, { recursive: true, force: true })
+    }
+  })
+
+  it('finds an ffprobe in development', () => {
+    expect(locateFfprobe({ packaged: false, resourcesPath: undefined })).toMatch(/ffprobe$/)
   })
 })

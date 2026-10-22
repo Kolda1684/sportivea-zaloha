@@ -114,6 +114,13 @@ describe('Runner.start refusals', () => {
     expect(runs).toHaveLength(0)
   })
 
+  it('refuses to start when ffprobe/ffmpeg are not usable', async () => {
+    const res = await makeRunner({ toolsOk: async () => false }).start(request())
+    expect(res.ok === false && res.error).toBe('Chybí nástroj ffprobe/ffmpeg — aplikace je poškozená, kontaktuj Jana.')
+    expect(runs).toHaveLength(0)
+    expect(await fs.readdir(rootDir)).toEqual([])
+  })
+
   it('refuses a new event whose folder already exists and leaves it untouched', async () => {
     await fs.mkdir(path.join(rootDir, 'Sparta - Slavia'))
     await fs.writeFile(path.join(rootDir, 'Sparta - Slavia', 'keep.txt'), 'x')
