@@ -1,0 +1,36 @@
+{
+  "name": "trideni-karet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Třídění karet — sorts camera-card footage and copies it to Google Drive",
+  "main": "./out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "app": "electron-vite build && electron-packager . \"Trideni karet\" --platform=darwin --arch=arm64 --out=dist --overwrite --asar.unpackDir=\"node_modules/{ffmpeg-static,ffprobe-static}\" --extra-resource=resources/bin --ignore=\"^/(src|tests|docs|scripts|resources|tsconfig.*|electron\\.vite\\.config\\.ts|vitest\\.config\\.ts|\\.gitignore|node_modules/\\.vite|\\.superpowers|eval-results|dist)\"",
+    "postinstall": "node scripts/postinstall.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "1.1.0",
+    "ffmpeg-static": "5.3.0",
+    "ffprobe-static": "3.1.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "@types/node": "26.6.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "electron": "45.0.0",
+    "electron-vite": "6.0.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
+  }
+}
