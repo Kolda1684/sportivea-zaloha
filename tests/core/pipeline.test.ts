@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { createReadStream, renameSync, rmSync } from 'node:fs'
+import { createReadStream, renameSync, rmSync, writeFileSync } from 'node:fs'
 import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -385,6 +385,33 @@ describe('runCard', () => {
       '_ostatni/DCIM/100MSDCF/DSC00001.JPG',
       `_ostatni/${CLIP_DIR}/C0001M01.XML`,
     ])
+  })
+
+  it('treats a file whose size changed since the scan (another card in the slot) as card removal', { timeout: 120_000 }, async () => {
+    const events: RunEvent[] = []
+    const summary = await runCard(await baseOptions(), (e) => {
+      events.push(e)
+      // after the first copy, a different card with a same-named but different C0003 is inserted
+      if (e.type === 'copied' && events.filter((x) => x.type === 'copied').length === 1) {
+        writeFileSync(path.join(cardRoot, CLIP_DIR, 'C0003.MP4'), 'another card')
+      }
+    })
+    expect(summary.status).toBe('card_removed')
+    expect(events.some((e) => e.type === 'card_removed')).toBe(true)
+    expect(media(await listFiles(eventDir))).toEqual(['Zápas/C0001_TOP_gol.MP4'])
+    const rows = await readCsv(summary.csvPath)
+    expect(rows.find((r) => r[0] === 'C0003.MP4')?.[2]).toBe('(nekopírováno)')
+    expect(rows.find((r) => r[0] === 'C0003.MP4')?.[3]).toContain('karta byla odpojena')
+  })
+
+  it('treats a file that vanished since the scan as card removal', { timeout: 120_000 }, async () => {
+    const events: RunEvent[] = []
+    const summary = await runCard(await baseOptions(), (e) => {
+      events.push(e)
+      if (e.type === 'copied') rmSync(path.join(cardRoot, CLIP_DIR, 'C0003.MP4'), { force: true })
+    })
+    expect(summary.status).toBe('card_removed')
+    expect(media(await listFiles(eventDir))).toEqual(['Zápas/C0001_TOP_gol.MP4'])
   })
 
   it('treats a vanished card at the first read (before probing) as card removal too', { timeout: 120_000 }, async () => {

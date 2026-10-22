@@ -493,6 +493,19 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
       continue
     }
 
+    // Card-swap guard: the file must still be the one that was scanned (same size). A missing or changed
+    // file means the card was pulled or another card with the same names was inserted.
+    let sourceSize: number | null = null
+    try {
+      sourceSize = (await fs.stat(file.absPath)).size
+    } catch {
+      sourceSize = null
+    }
+    if (sourceSize !== file.size) {
+      markCardRemoved()
+      break
+    }
+
     // folder and desired name
     let folder: string
     let desiredName: string
