@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+import { createReadStream } from 'node:fs'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { scanCard } from './card'
@@ -6,7 +8,7 @@ import { writeMappingCsv, type MappingRow } from './csv'
 import { copyVerified, sha256File, type CopyOptions, type CopyOutcome } from './copy'
 import { makeSpaceWaiter } from './diskspace'
 import { contactSheet, frameLumas } from './frames'
-import type { Journal } from './journal'
+import type { Journal, JournalEntry } from './journal'
 import { detectMarkers, type MarkerInput } from './markers'
 import { buildName, parseOriginalName, slugify, withConflictSuffix } from './naming'
 import { costUsd } from './pricing'
@@ -34,6 +36,8 @@ export type RunOptions = {
   openRead?: CopyOptions['openRead']
   /** Hashes the copied temp file for verification (default streaming SHA-256). */
   hashFile?: CopyOptions['hashFile']
+  /** Hard-link primitive used by the copy step (default `fs.link`); injectable for tests. */
+  linkFn?: CopyOptions['linkFn']
 }
 
 export type RunEvent =
@@ -56,7 +60,7 @@ export type RunSummary = {
   others: number
   costUsd: number
   csvPath: string
-  status: 'ok' | 'card_removed' | 'verify_failed'
+  status: 'ok' | 'card_removed' | 'verify_failed' | 'aborted'
 }
 
 const DEFAULT_CONCURRENCY = 4
@@ -174,17 +178,19 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
   const hashFile = opts.hashFile ?? sha256File
 
   let cardRemoved = false
+  let destinationGone = false
   const markCardRemoved = (): void => {
     if (cardRemoved) return
     cardRemoved = true
     emit({ type: 'card_removed' })
   }
-  const stopped = (): boolean => cardRemoved || signal?.aborted === true
+  const stopped = (): boolean => cardRemoved || destinationGone || signal?.aborted === true
 
   const rows = new Map<string, MappingRow>()
   const perFolder: Record<string, number> = {}
   const lowConfidence: string[] = []
   const verifyFailed: string[] = []
+  const placed = new Set<string>()
   let alreadyUploaded = 0
   let unclassified = 0
   let others = 0
@@ -293,16 +299,49 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
 
   // ---- classify non-marker videos that are not on the drive yet
   const results = new Map<string, ClassifyResult>()
-  const alreadyDone = (f: CardFile): ReturnType<Journal['findByOriginal']> => journal.findByOriginal(eventDir, f.relPath, f.size)
+  // A journal hit on (relPath, size) is only a candidate: two cards of one event share names and sizes.
+  // The skip is accepted when the source content hash is known to the journal AND that file is still at the drive.
+  const confirmed = new Map<string, JournalEntry>()
+  const openRead = opts.openRead ?? ((p: string): NodeJS.ReadableStream => createReadStream(p))
+  const hashSource = async (absPath: string): Promise<string> => {
+    const hash = createHash('sha256')
+    for await (const chunk of openRead(absPath)) hash.update(chunk as Buffer)
+    return hash.digest('hex')
+  }
   if (!stopped()) {
-    const toClassify = videos.filter((f) => !markerSet.has(f.relPath) && alreadyDone(f) === undefined)
+    const candidates = files.filter((f) => !markerSet.has(f.relPath) && journal.findByOriginal(eventDir, f.relPath, f.size) !== undefined)
+    await pool(
+      candidates,
+      ANALYSIS_CONCURRENCY,
+      async (file) => {
+        try {
+          const entry = journal.find(eventDir, await hashSource(file.absPath), file.size)
+          if (!entry) return
+          const st = await fs.lstat(entry.destPath)
+          if (st.isFile() && st.size === file.size) confirmed.set(file.relPath, entry)
+        } catch {
+          // Not confirmed (unreadable, or the journalled copy is gone): classify and copy normally.
+          // If the source itself vanished, that is card removal.
+          try {
+            await fs.stat(file.absPath)
+          } catch (statErr) {
+            if (isCardGone(statErr)) markCardRemoved()
+          }
+        }
+      },
+      stopped,
+    )
+  }
+
+  if (!stopped()) {
+    const toClassify = videos.filter((f) => !markerSet.has(f.relPath) && !confirmed.has(f.relPath))
     await pool(
       toClassify,
       concurrency,
       async (file) => {
         const clip = clips.get(file.relPath)
         if (!clip) return
-        let result: ClassifyResult
+        let result: ClassifyResult | undefined
         if (clip.analysisError !== undefined || !clip.meta) {
           result = failure(`náhled klipu selhal: ${clip.analysisError ?? 'neznámá chyba'}`)
         } else {
@@ -326,10 +365,9 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
             } catch (e) {
               result = failure(errMessage(e))
             }
-          } else {
-            result = failure('náhled klipu selhal')
           }
         }
+        result ??= failure('náhled klipu selhal')
         results.set(file.relPath, result)
         emit({ type: 'classified', relPath: file.relPath, result, top: topSet.has(file.relPath), marker: false })
       },
@@ -377,6 +415,7 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
 
   const place = (p: Planned, folder: string, newName: string, notes: string[]): void => {
     setRow(p.file, newName, folder, notes)
+    placed.add(p.file.relPath)
     if (p.file.kind === 'other') {
       others++
     } else {
@@ -392,7 +431,7 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
     if (p.top) notes.push('TOP')
 
     // already uploaded in an earlier run (same event, same card path and size)
-    const hit = alreadyDone(file)
+    const hit = confirmed.get(file.relPath)
     if (hit) {
       alreadyUploaded++
       const rel = path.relative(eventDir, path.dirname(hit.destPath)).split(path.sep).join('/')
@@ -464,14 +503,30 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
         },
       }
       if (opts.openRead) copyOpts.openRead = opts.openRead
+      if (opts.linkFn) copyOpts.linkFn = opts.linkFn
       outcome = await copyVerified(file.absPath, destDir, desiredName, copyOpts)
     } catch (e) {
       if (isCardGone(e)) {
-        markCardRemoved()
-        break
+        // ENOENT/EIO/ENXIO can also come from the destination: it is card removal only if the source is gone too.
+        let sourceGone = false
+        try {
+          await fs.stat(file.absPath)
+        } catch (statErr) {
+          sourceGone = isCardGone(statErr)
+        }
+        if (sourceGone) {
+          markCardRemoved()
+          break
+        }
       }
       verifyFailed.push(`${file.relPath} (${errMessage(e)})`)
       setRow(file, '', NOT_COPIED, [...notes, `kopírování selhalo: ${errMessage(e)}`])
+      try {
+        await fs.stat(eventDir)
+      } catch {
+        destinationGone = true // the event folder itself is gone (e.g. Drive unmounted): nothing more can be written
+        break
+      }
       continue
     }
 
@@ -502,22 +557,39 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
   }
 
   // ---- every file on the card is accounted for
-  const pendingNote = cardRemoved ? 'nezpracováno: karta byla odpojena' : signal?.aborted ? 'nezpracováno: přerušeno' : 'nezpracováno'
+  const unplaced = files.filter((f) => !markerSet.has(f.relPath) && !placed.has(f.relPath) && !rows.get(f.relPath))
+  const aborted = signal?.aborted === true
+  const pendingNote = cardRemoved
+    ? 'nezpracováno: karta byla odpojena'
+    : destinationGone
+      ? 'nezpracováno: cílová složka zmizela'
+      : aborted
+        ? 'nezpracováno: přerušeno'
+        : 'nezpracováno'
   const csvRows: MappingRow[] = files.map(
     (f) => rows.get(f.relPath) ?? { original: shownName(f), newName: '', folder: NOT_COPIED, note: pendingNote },
   )
+  // Unprocessed files are only acceptable when the run was stopped on purpose or by card removal.
+  if (!cardRemoved && !aborted) {
+    for (const f of unplaced) verifyFailed.push(`${f.relPath} (${pendingNote})`)
+  }
 
-  await fs.mkdir(eventDir, { recursive: true })
   const stamp = csvName(new Date())
   let csvPath = ''
-  for (let n = 1; csvPath === ''; n++) {
-    const candidate = path.join(eventDir, n === 1 ? stamp : withConflictSuffix(stamp, n))
-    try {
-      await writeMappingCsv(candidate, csvRows)
-      csvPath = candidate
-    } catch (e) {
-      if (errCode(e) !== 'EEXIST') throw e
+  try {
+    if (!destinationGone) await fs.mkdir(eventDir, { recursive: true })
+    for (let n = 1; csvPath === ''; n++) {
+      const candidate = path.join(eventDir, n === 1 ? stamp : withConflictSuffix(stamp, n))
+      try {
+        await writeMappingCsv(candidate, csvRows)
+        csvPath = candidate
+      } catch (e) {
+        if (errCode(e) !== 'EEXIST') throw e
+      }
     }
+  } catch (e) {
+    csvPath = ''
+    verifyFailed.push(`CSV report (${errMessage(e)})`)
   }
 
   const summary: RunSummary = {
@@ -532,7 +604,13 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
     others,
     costUsd: cost,
     csvPath,
-    status: cardRemoved ? 'card_removed' : verifyFailed.length > 0 ? 'verify_failed' : 'ok',
+    status: cardRemoved
+      ? 'card_removed'
+      : aborted && unplaced.length > 0
+        ? 'aborted'
+        : verifyFailed.length > 0
+          ? 'verify_failed'
+          : 'ok',
   }
   emit({ type: 'done', summary })
   return summary

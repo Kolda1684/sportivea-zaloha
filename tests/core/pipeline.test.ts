@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { createReadStream } from 'node:fs'
+import { createReadStream, renameSync, rmSync } from 'node:fs'
 import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -17,7 +17,7 @@ const CLIP_DIR = 'PRIVATE/M4ROOT/CLIP'
 const SONNET_USAGE = { input: 1_000_000, output: 0, cacheRead: 0, cacheWrite: 0, model: 'claude-sonnet-5-5' }
 
 let work: string
-let clips: { c1: string; c2: string; c3: string }
+let clips: { c1: string; c1b: string; c2: string; c3: string }
 let root: string
 let cardRoot: string
 let eventDir: string
@@ -44,6 +44,7 @@ beforeAll(async () => {
   const f = await ensureFixtureClips()
   clips = {
     c1: await dated(f.bright, 'c1.mp4', '2026-10-01T10:00:00Z'), // 5 s, ends 10:00:05
+    c1b: await dated(f.bright, 'c1b.mp4', '2026-10-01T10:00:01Z'), // same size as c1, different bytes
     c2: await dated(f.black, 'c2.mp4', '2026-10-01T10:00:07Z'), // marker, 2 s after c1 ended
     c3: await dated(f.bright, 'c3.mp4', '2026-10-01T10:05:00Z'),
   }
@@ -53,8 +54,8 @@ afterAll(async () => {
   await fs.rm(work, { recursive: true, force: true })
 })
 
-async function put(rel: string, content: Buffer | string | { copyFrom: string }): Promise<void> {
-  const abs = path.join(cardRoot, rel)
+async function put(rel: string, content: Buffer | string | { copyFrom: string }, at: string = cardRoot): Promise<void> {
+  const abs = path.join(at, rel)
   await fs.mkdir(path.dirname(abs), { recursive: true })
   if (typeof content === 'object' && 'copyFrom' in content) await fs.copyFile(content.copyFrom, abs)
   else await fs.writeFile(abs, content)
@@ -241,11 +242,16 @@ describe('runCard', () => {
 
   it('stops when the card disappears, keeps what is verified, and resumes on re-run', { timeout: 120_000 }, async () => {
     const journal = await Journal.load(journalFile)
+    // the card "disappears" while C0003 is being read: its folder is moved away, so the source no longer stats
     const openRead = (p: string): NodeJS.ReadableStream => {
-      if (p.endsWith('C0003.MP4')) throw enoent()
+      if (p.endsWith('C0003.MP4')) {
+        renameSync(cardRoot, `${cardRoot}.off`)
+        throw enoent()
+      }
       return createReadStream(p)
     }
     const first = await run({ journal, openRead })
+    renameSync(`${cardRoot}.off`, cardRoot)
 
     expect(first.summary.status).toBe('card_removed')
     expect(first.events.some((e) => e.type === 'card_removed')).toBe(true)
@@ -328,7 +334,7 @@ describe('runCard', () => {
       controller.signal,
     )
     expect(media(await listFiles(eventDir))).toEqual(['Zápas/C0001_TOP_gol.MP4'])
-    expect(summary.status).toBe('ok')
+    expect(summary.status).toBe('aborted')
     const rows = await readCsv(summary.csvPath)
     expect(rows).toHaveLength(6)
     expect(rows.find((r) => r[0] === 'C0003.MP4')?.[2]).toBe('(nekopírováno)')
@@ -340,5 +346,67 @@ describe('runCard', () => {
     expect(summary).toMatchObject({ top: 0, markers: 1, orphanMarkers: 1 })
     const rows = await readCsv(summary.csvPath)
     expect(rows.find((r) => r[0] === 'C0002.MP4')?.[3]).toContain('černá značka (bez TOP)')
+  })
+  it('treats ENOENT/EIO on the destination as a failed file, not as card removal', { timeout: 120_000 }, async () => {
+    const linkFn = async (from: string, to: string): Promise<void> => {
+      if (to.includes('C0003')) throw Object.assign(new Error('EIO: destination'), { code: 'EIO' })
+      await fs.link(from, to)
+    }
+    const { summary, events } = await run({ linkFn })
+    expect(events.some((e) => e.type === 'card_removed')).toBe(false)
+    expect(summary.status).toBe('verify_failed')
+    expect(summary.verifyFailed).toHaveLength(1)
+    expect(summary.verifyFailed[0]).toContain('C0003.MP4')
+    const files = media(await listFiles(eventDir))
+    expect(files).toContain('Zápas/C0001_TOP_gol.MP4')
+    expect(files).toContain('_ostatni/DCIM/100MSDCF/DSC00001.JPG') // the run went on after the failure
+  })
+
+  it('stops with verify_failed when the event folder disappears, and still emits done', { timeout: 120_000 }, async () => {
+    let links = 0
+    const linkFn = async (): Promise<void> => {
+      links++
+      rmSync(eventDir, { recursive: true, force: true })
+      throw Object.assign(new Error('ENOENT: destination gone'), { code: 'ENOENT' })
+    }
+    const { summary, events } = await run({ linkFn })
+    expect(links).toBe(1)
+    expect(summary.status).toBe('verify_failed')
+    expect(summary.csvPath).toBe('')
+    expect(summary.verifyFailed.some((v) => v.includes('C0001.MP4'))).toBe(true)
+    expect(summary.verifyFailed.some((v) => v.includes('C0003.MP4'))).toBe(true) // not processed
+    expect(events.at(-1)).toMatchObject({ type: 'done' })
+    expect(events.some((e) => e.type === 'card_removed')).toBe(false)
+  })
+
+  it('does not skip a clip from a second card that shares relPath and size with an uploaded one', { timeout: 120_000 }, async () => {
+    const journal = await Journal.load(journalFile)
+    await run({ journal })
+    const cardB = path.join(root, 'SONY2')
+    await put(`${CLIP_DIR}/C0001.MP4`, { copyFrom: clips.c1b }, cardB)
+    await put(`${CLIP_DIR}/C0002.MP4`, { copyFrom: clips.c2 }, cardB)
+    expect((await fs.stat(path.join(cardB, CLIP_DIR, 'C0001.MP4'))).size).toBe((await fs.stat(clips.c1)).size)
+    expect(await sha256File(clips.c1b)).not.toBe(await sha256File(clips.c1))
+
+    const classifier = fakeClassifier()
+    const { summary } = await run({ journal, cardRoot: cardB, classifier })
+    expect(classifier.seen).toEqual(['C0001.MP4'])
+    expect(summary.alreadyUploaded).toBe(0)
+    expect(summary.status).toBe('ok')
+    expect(media(await listFiles(eventDir))).toContain('Zápas/C0001-SONY2_TOP_gol.MP4')
+    expect(await sha256File(path.join(eventDir, 'Zápas/C0001_TOP_gol.MP4'))).toBe(await sha256File(clips.c1))
+    expect(await sha256File(path.join(eventDir, 'Zápas/C0001-SONY2_TOP_gol.MP4'))).toBe(await sha256File(clips.c1b))
+  })
+
+  it('copies a file again when the journal knows it but the copy is gone from the drive', { timeout: 120_000 }, async () => {
+    const journal = await Journal.load(journalFile)
+    await run({ journal })
+    await fs.rm(path.join(eventDir, 'Zápas/C0003_sance.MP4'))
+    const classifier = fakeClassifier()
+    const { summary } = await run({ journal, classifier })
+    expect(classifier.seen).toEqual(['C0003.MP4'])
+    expect(summary.alreadyUploaded).toBe(3)
+    expect(summary.status).toBe('ok')
+    expect(media(await listFiles(eventDir))).toContain('Zápas/C0003_sance.MP4')
   })
 })
