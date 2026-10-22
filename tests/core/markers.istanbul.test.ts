@@ -16,7 +16,7 @@ const nfc = (s: string): string => s.normalize('NFC')
 type Truth = { markers: Set<string>; top: Set<string> }
 
 async function loadTruth(): Promise<Truth> {
-  const text = (await readFile(CSV, 'utf8')).replace(/^﻿/, '')
+  const text = (await readFile(CSV, 'utf8')).replace(/^\uFEFF/, '')
   const [header, ...rows] = text.split(/\r?\n/).filter((l) => l.trim() !== '')
   expect(header).toBe('puvodni_nazev;novy_nazev;slozka;poznamka')
   const markers = new Set<string>()
@@ -45,7 +45,7 @@ async function mapLimited<T, R>(items: T[], limit: number, fn: (item: T) => Prom
   return out
 }
 
-describe.skipIf(!existsSync(ROOT) || !existsSync(CSV))('markers on the Istanbul card', () => {
+describe.skipIf(process.env['TRIDENI_INTEGRATION'] !== '1' || !existsSync(ROOT) || !existsSync(CSV))('markers on the Istanbul card', () => {
   it(
     'finds exactly the CSV markers and TOP clips',
     { timeout: 900_000 },
