@@ -165,8 +165,16 @@ export class Runner {
         if (errCode(e) === 'EEXIST') return { ok: false, error: 'Akce s tímhle názvem už existuje. Vyber ji ze seznamu, nebo zvol jiný název.' }
         throw e
       }
-    } else if (!(await isDirectory(eventDir))) {
-      return { ok: false, error: 'Složka vybrané akce neexistuje.' }
+    } else {
+      // lstat, like the pipeline: a symlinked event folder would be treated there as a vanished destination
+      let st: Awaited<ReturnType<typeof fs.lstat>>
+      try {
+        st = await fs.lstat(eventDir)
+      } catch {
+        return { ok: false, error: 'Složka vybrané akce neexistuje.' }
+      }
+      if (st.isSymbolicLink()) return { ok: false, error: 'Složka akce je jen odkaz (symbolický odkaz). Vyber skutečnou složku akce.' }
+      if (!st.isDirectory()) return { ok: false, error: 'Vybraná akce není složka.' }
     }
 
     const position = this.queue.pending
@@ -253,8 +261,4 @@ export async function listEvents(rootDir: string | null): Promise<string[]> {
   } catch {
     return []
   }
-}
-
-export function isInsideRoot(rootDir: string | null, target: string): boolean {
-  return rootDir !== null && path.isAbsolute(target) && isInside(path.resolve(rootDir), path.resolve(target))
 }

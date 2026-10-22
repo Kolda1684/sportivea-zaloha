@@ -1,10 +1,10 @@
 import { app, dialog, ipcMain, shell, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
-import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { z } from 'zod'
 import { IPC, type CardDetected, type PickPurpose, type Result, type SettingsResult } from '../shared/ipc-types'
 import { describeCard } from './cardinfo'
-import { isInsideRoot, listEvents, type Runner } from './runner'
+import { resolveInsideRoot, RootFolderGuard } from './guards'
+import { listEvents, type Runner } from './runner'
 import { loadApiKey, saveApiKey } from './secrets'
 import { loadSettings, parseSettingsPatch, saveSettings } from './settings'
 
@@ -18,14 +18,6 @@ const purposeSchema = z.enum(['card', 'root'])
 const apiKeySchema = z.string().trim().min(1).max(500)
 const pathSchema = z.string().min(1).max(4096)
 
-async function exists(p: string): Promise<boolean> {
-  try {
-    return (await stat(p)).isDirectory()
-  } catch {
-    return false
-  }
-}
-
 /** Registers every `ipcMain.handle`. Only the main window's own frames may call them. */
 export function registerIpc(ctx: IpcContext): void {
   const guarded =
@@ -35,6 +27,8 @@ export function registerIpc(ctx: IpcContext): void {
       if (!win || event.sender !== win.webContents) throw new Error('Nepovolené volání.')
       return fn(...args)
     }
+
+  const rootGuard = new RootFolderGuard()
 
   // settings.json is read-modify-write: serialise the writers so that two patches cannot overwrite each other
   let settingsLock: Promise<unknown> = Promise.resolve()
@@ -50,9 +44,13 @@ export function registerIpc(ctx: IpcContext): void {
       const parsed = parseSettingsPatch(raw)
       if (!parsed.ok) return parsed
       const patch = parsed.patch
-      if (patch.rootDir != null && !patch.rootDir.startsWith('/')) return { ok: false, error: 'Cesta ke složce musí být úplná.' }
       const run = settingsLock.then(async (): Promise<SettingsResult> => {
-        const merged = { ...(await loadSettings(ctx.settingsFile)), ...patch }
+        const current = await loadSettings(ctx.settingsFile)
+        // the root folder can only be set to what the user chose in the folder dialog (or cleared)
+        if (patch.rootDir !== undefined && !(await rootGuard.allows(patch.rootDir, current.rootDir))) {
+          return { ok: false, error: 'Složku pro akce vyber tlačítkem Vybrat složku, jinou cestu nejde nastavit.' }
+        }
+        const merged = { ...current, ...patch }
         try {
           await saveSettings(ctx.settingsFile, merged)
         } catch (e) {
@@ -111,7 +109,10 @@ export function registerIpc(ctx: IpcContext): void {
       const picked = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
       const dir = picked.filePaths[0]
       if (picked.canceled || dir === undefined) return null
-      if (purpose === 'root') return dir
+      if (purpose === 'root') {
+        await rootGuard.recordPick(dir)
+        return dir
+      }
       const info = await describeCard(dir)
       if (info) ctx.runner.registerCard(dir)
       return info
@@ -124,8 +125,10 @@ export function registerIpc(ctx: IpcContext): void {
       const parsed = pathSchema.safeParse(raw)
       if (!parsed.success) return 'Neplatná cesta.'
       const { rootDir } = await loadSettings(ctx.settingsFile)
-      if (!isInsideRoot(rootDir, parsed.data) || !(await exists(parsed.data))) return 'Tuhle složku nejde otevřít.'
-      return shell.openPath(parsed.data) // resolves to '' on success, otherwise an error text
+      const target = await resolveInsideRoot(rootDir, parsed.data)
+      if (target === null) return 'Tuhle složku nejde otevřít.'
+      shell.showItemInFolder(target) // reveals in Finder, never launches anything
+      return ''
     }),
   )
 }

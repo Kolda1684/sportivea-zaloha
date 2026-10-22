@@ -78,6 +78,6 @@ export type Api = {
   setSettings(patch: Partial<Settings>): Promise<SettingsResult>
   setApiKey(key: string): Promise<Result>
   hasApiKey(): Promise<boolean>
-  /** Opens a folder inside the root folder in Finder. Resolves to an error text, or '' on success. */
+  /** Reveals a folder inside the root folder in Finder. Resolves to an error text, or '' on success. */
   openFolder(path: string): Promise<string>
 }

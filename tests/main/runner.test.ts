@@ -120,6 +120,21 @@ describe('Runner.start refusals', () => {
     await expect(fs.stat(path.join(rootDir, 'Sparta - Slavia'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
+  it('refuses an existing event that is a symlink (the pipeline would treat it as a vanished folder)', async () => {
+    const elsewhere = path.join(base, 'elsewhere')
+    await fs.mkdir(elsewhere)
+    await fs.symlink(elsewhere, path.join(rootDir, 'Sparta - Slavia'))
+    const res = await makeRunner().start(request({ isNew: false }))
+    expect(res.ok === false && res.error).toMatch(/odkaz|symbolick/)
+    expect(runs).toHaveLength(0)
+  })
+
+  it('refuses an existing event that is a regular file', async () => {
+    await fs.writeFile(path.join(rootDir, 'Sparta - Slavia'), 'x')
+    const res = await makeRunner().start(request({ isNew: false }))
+    expect(res.ok).toBe(false)
+  })
+
   it.each(['../evil', 'a/b', '..', '.hidden', '  ', 'a\\b'])('refuses the event name %j', async (eventName) => {
     const res = await makeRunner().start(request({ eventName }))
     expect(res.ok).toBe(false)
