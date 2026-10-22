@@ -276,9 +276,14 @@ describe('Runner.start', () => {
     const card2 = path.join(base, 'CANON')
     await fs.mkdir(card2)
     const order: string[] = []
+    // the first run is held until the second card is queued, so the queue position does not depend on timing
+    let releaseFirst = (): void => {}
+    const firstHeld = new Promise<void>((r) => {
+      releaseFirst = r
+    })
     runImpl = async (opts) => {
       order.push(`start ${path.basename(opts.cardRoot)}`)
-      await new Promise((r) => setTimeout(r, 30))
+      if (path.basename(opts.cardRoot) === 'SONY') await firstHeld
       order.push(`end ${path.basename(opts.cardRoot)}`)
       return SUMMARY
     }
@@ -286,6 +291,7 @@ describe('Runner.start', () => {
     runner.registerCard(card2)
     await runner.start(request())
     await runner.start(request({ cardRoot: card2, eventName: 'Druha' }))
+    releaseFirst()
     await runner.idle()
     expect(order).toEqual(['start SONY', 'end SONY', 'start CANON', 'end CANON'])
     const queued = sent.filter((p) => p.event.type === 'queued').map((p) => (p.event.type === 'queued' ? p.event.position : -1))

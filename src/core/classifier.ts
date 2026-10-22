@@ -186,8 +186,11 @@ export class ClaudeClassifier implements Classifier {
       }
       return { ...sanitizeResult(response.parsed_output, input.template, input.handLabel), usage }
     } catch (err) {
-      // the request itself failed (connection, timeout after retries, HTTP error)
-      return { ...failure(err instanceof Error ? err.message : String(err)), apiFailure: true }
+      const message = err instanceof Error ? err.message : String(err)
+      // only a failed request (connection, timeout after retries, HTTP error) counts towards the AI breaker;
+      // parse() also throws when a refusal or truncated answer is not valid JSON, which is a per-clip failure
+      if (err instanceof Anthropic.APIError) return { ...failure(message), apiFailure: true }
+      return failure(message)
     }
   }
 }

@@ -45,7 +45,7 @@ Do zeleného potvrzení aplikace velkým textem říká „Karta ještě NENÍ z
 - **Na disk se jen přidává.** Existující soubory se nepřepisují. Když název už existuje, přidá se ` (2)`, ` (3)`. Soubor se stejným obsahem z dřívějšího běhu se nenahrává znovu („už nahráno dřív“).
 - **Selhání AI nezablokuje zálohu.** Klip, který se nepodařilo zařadit, jde do složky `_nezařazeno` pod původním názvem. Když AI selže 5× po sobě (síť, výpadek), aplikace se jí přestane ptát a zbytek zálohuje do `_nezařazeno`; na konci napíše „AI nedostupná — zbytek zálohován bez třídění.“
 - Ostatní soubory z karty (fotky, zvuk, XML) jdou beze změny do složky `_ostatni`. Patří sem i proxy a náhledy ze Sony (`M4ROOT/SUB/`, `M4ROOT/THMBNL/`): netřídí se, neposílají se AI a nepočítají se jako klipy ani pro TOP.
-- Když se karta během zálohy vymění (stejné názvy, jiný obsah), běh se zastaví jako při odpojení karty.
+- Když se karta během zálohy vymění (stejné názvy, jiná velikost souboru), běh se zastaví jako při odpojení karty.
 
 ## Co znamená TOP a černé značky
 

@@ -27,7 +27,7 @@ Jan to výslovně chtěl: **aplikace nikdy nic nesmaže.**
 - **Na disk se jen přidává.** Žádné mazání, přesouvání ani přepisování existujících souborů. Když cílový název už existuje, aplikace nahraje soubor s dovětkem ` (2)`, ` (3)`… Výjimka: pokud stejnojmenný soubor má stejnou velikost i kontrolní součet, jde o duplikát z dřívějšího běhu. Nenahrává se znovu a v přehledu je uvedený jako „už na disku“.
 - **„Zapsáno a ověřeno“** se ukáže teprve po ověření všech souborů (viz Ověření). Do té doby UI výslovně říká „karta ještě NENÍ zálohovaná“. Aplikace nikdy netvrdí, že je hotový upload do cloudu (varianta A).
 - **Černé značky se na disk nenahrávají**, ale na kartě zůstanou. V CSV jsou uvedené.
-- **Selhání AI nikdy neblokuje zálohu.** Když třídění klipu selže (síť, chyba API, nečitelný soubor), klip se nahraje do podsložky `_nezařazeno` pod původním názvem. Záloha má vždy přednost před tříděním.
+- **Selhání AI nikdy neblokuje zálohu.** Když třídění klipu selže (síť, chyba API, nečitelný soubor), klip se nahraje do podsložky `_nezařazeno` pod původním názvem. Záloha má vždy přednost před tříděním. Po 5 selháních API za sebou se AI přestane volat a zbytek karty se zálohuje bez třídění. Bez uloženého API klíče jde kartu zálohovat tlačítkem „Zálohovat bez třídění“ (vše do `_nezařazeno`, černé značky a TOP se pořád poznají).
 
 ## Proč ne / co to nebude dělat
 
@@ -145,7 +145,7 @@ Test pustí klasifikaci (bez nahrávání) přes Haiku 5.5 a Sonnet 5.5 a změř
 
 ## Upřesnění po recenzi (rozhodl Claude)
 
-- **Co se nahrává:** všechno z karty, aby „zálohovaná“ znamenalo opravdu celá karta. Videa se třídí do kategorií. Ostatní soubory (fotky, zvuk, proxy, XML ze Sony a podobně) jdou beze změny do podsložky `_ostatni` se zachovanou cestou z karty. Do zálohy nepatří jen systémové soubory macOS (`._*`, `.Spotlight-V100`, `.fseventsd`, `.Trashes`, `.DS_Store`). Přehled ukáže počty obou skupin.
+- **Co se nahrává:** všechno z karty, aby „zálohovaná“ znamenalo opravdu celá karta. Videa se třídí do kategorií. Ostatní soubory (fotky, zvuk, proxy a náhledy Sony z `M4ROOT/SUB` a `M4ROOT/THMBNL`, XML ze Sony a podobně) jdou beze změny do podsložky `_ostatni` se zachovanou cestou z karty. Do zálohy nepatří jen systémové soubory macOS (`._*`, `.Spotlight-V100`, `.fseventsd`, `.Trashes`, `.DS_Store`). Přehled ukáže počty obou skupin.
 - **Názvy z karty:** na kartě jsou výchozí názvy kamery (`C0001`, `A75_0449`, `FX3-A_9347`, `DSC_5001`). Ruční popisky typu `FX3-A_9347_šance` se převezmou, když jsou za číslem. Když jsou před ním nebo číslo chybí, převezme se celý původní název (bez diakritiky) a popis se k němu připojí. Chronologie podle názvu platí v rámci jedné kamery. Když se v cílové složce potká stejný původní název z jiné kamery s jiným obsahem, přidá se za původní název krátká značka kamery (model z metadat, třeba `C0001-A7IV_gol.MP4`). Dovětek ` (2)` je až poslední záchrana.
 - **Duplikáty a opakované vložení karty:** aplikace si vede deník (lokální databáze) všech nahraných souborů podle kontrolního součtu obsahu a původního názvu. Když se stejný klip objeví znovu (stejná karta podruhé, pokračování po pádu), v rámci stejné složky akce se nenahraje znovu, bez ohledu na to, jaký popis by mu AI dala teď. V přehledu je uvedený jako „už nahráno dřív“.
 - **Místo na disku:** před startem aplikace zkontroluje volné místo na Macu (Drive pro počítač drží soubory lokálně, dokud je nenahraje). Když místo dochází, kopírování pozastaví a počká, až Drive uvolní cache. Doporučené nastavení Drive: „Streamovat soubory“.

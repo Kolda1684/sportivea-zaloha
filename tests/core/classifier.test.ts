@@ -170,6 +170,56 @@ describe('ClaudeClassifier.classify', () => {
     expect(unparsable.apiFailure).toBeUndefined()
   })
 
+  it('does not mark a real SDK refusal or truncated answer as an API failure', async () => {
+    const reply = (text: string, stopReason: string) =>
+      new ClaudeClassifier({
+        apiKey: 'sk-test-not-real',
+        model: 'claude-sonnet-5-5',
+        client: new Anthropic({
+          apiKey: 'sk-test-not-real',
+          maxRetries: 0,
+          fetch: async () =>
+            new Response(
+              JSON.stringify({
+                id: 'msg_test',
+                type: 'message',
+                role: 'assistant',
+                model: 'claude-sonnet-5-5',
+                content: [{ type: 'text', text }],
+                stop_reason: stopReason,
+                stop_sequence: null,
+                usage: { input_tokens: 10, output_tokens: 5 },
+              }),
+              { status: 200, headers: { 'content-type': 'application/json' } },
+            ),
+        }),
+      })
+    const refused = await reply('I cannot help with that.', 'refusal').classify(input())
+    const truncated = await reply('{"category": "Z', 'max_tokens').classify(input())
+    expect(refused).toMatchObject({ ok: false, category: UNCLASSIFIED })
+    expect(truncated).toMatchObject({ ok: false, category: UNCLASSIFIED })
+    expect(refused.apiFailure).toBeUndefined()
+    expect(truncated.apiFailure).toBeUndefined()
+  })
+
+  it('marks an HTTP error from the real SDK as an API failure', async () => {
+    const c = new ClaudeClassifier({
+      apiKey: 'sk-test-not-real',
+      model: 'claude-sonnet-5-5',
+      client: new Anthropic({
+        apiKey: 'sk-test-not-real',
+        maxRetries: 0,
+        fetch: async () =>
+          new Response(JSON.stringify({ type: 'error', error: { type: 'overloaded_error', message: 'Overloaded' } }), {
+            status: 529,
+            headers: { 'content-type': 'application/json' },
+          }),
+      }),
+    })
+    const r = await c.classify(input())
+    expect(r).toMatchObject({ ok: false, category: UNCLASSIFIED, apiFailure: true })
+  })
+
   it('never throws on non-Error rejections', async () => {
     const c = classifier(async () => {
       throw 'boom'
