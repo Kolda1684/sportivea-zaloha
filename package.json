@@ -10,7 +10,7 @@
     "build": "electron-vite build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
-    "app": "electron-vite build && electron-packager . \"Trideni karet\" --platform=darwin --arch=arm64 --out=dist --overwrite --asar.unpackDir=\"node_modules/{ffmpeg-static,ffprobe-static}\" --extra-resource=resources/bin --ignore=\"^/(src|tests|docs|scripts|resources|tsconfig.*|electron\\.vite\\.config\\.ts|vitest\\.config\\.ts|\\.gitignore|node_modules/\\.vite|\\.superpowers|eval-results|dist)\"",
+    "app": "electron-vite build && electron-packager . \"Trideni karet\" --platform=darwin --arch=arm64 --out=dist --overwrite --asar.unpackDir=\"node_modules/{ffmpeg-static,ffprobe-static}\" --extra-resource=resources/bin --ignore=\"^/(src|tests|docs|scripts|resources|tsconfig.*|electron\\.vite\\.config\\.ts|vitest\\.config\\.ts|\\.gitignore|\\.env.*|CLAUDE\\.md|node_modules/\\.vite|\\.superpowers|eval-results|dist)\"",
     "postinstall": "node scripts/postinstall.mjs"
   },
   "dependencies": {

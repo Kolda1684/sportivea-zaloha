@@ -18,7 +18,7 @@ Spec (Czech, source of truth for behaviour and safety rules):
 - `src/core/` — pure TypeScript modules (no Electron imports), tested with Vitest
   - `bin.ts` — `ffmpegPath()` / `ffprobePath()`
 - `src/main/` — Electron main process (`index.ts`)
-- `src/preload/` — contextBridge preload (`index.ts`, built to `out/preload/index.mjs`)
+- `src/preload/` — contextBridge preload (`index.ts`, built to `out/preload/index.cjs`)
 - `src/renderer/` — React 19 UI (`index.html`, `main.tsx`)
 - `src/types/` — ambient type declarations (`ffprobe-static`)
 - `tests/` — Vitest tests mirroring `src/`
