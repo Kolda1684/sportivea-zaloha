@@ -8,14 +8,16 @@ import {
   AI_UNAVAILABLE_MESSAGE,
   CARD_REMOVED_MESSAGE,
   FINAL_OK_MESSAGE,
+  NO_AI_DONE_MESSAGE,
   NOT_BACKED_UP_HEADING,
   VERIFY_FAILED_MESSAGE,
 } from '../strings'
 
 type ManualEntry = { key: string; name: string; folder: string; original: string; reason: string }
 
-/** Low-confidence clips (from the summary) plus every clip that ended up unclassified. */
+/** Low-confidence clips (from the summary) plus every clip that ended up unclassified (all of them after a backup without sorting, so none are listed then). */
 function manualChecks(summary: RunSummary, items: RunItem[]): ManualEntry[] {
+  if (summary.ai === 'off') return []
   const byPath = new Map(items.map((i) => [i.relPath, i]))
   const entries = new Map<string, ManualEntry>()
   const entry = (relPath: string, reason: string): ManualEntry => {
@@ -79,7 +81,8 @@ export function Done({ run, summary, czkPerUsd, canRerun, onRerun, onClose }: Do
   const copiedClips = folders.reduce((sum, [, n]) => sum + n, 0)
   const manual = manualChecks(summary, run.items)
   const ok = summary.status === 'ok'
-  const failedClassify = countClassifyFailures(run)
+  // after a backup without sorting, no clip "failed": none was meant to be sorted
+  const failedClassify = summary.ai === 'off' ? 0 : countClassifyFailures(run)
 
   return (
     <section className="stack">
@@ -95,6 +98,12 @@ export function Done({ run, summary, czkPerUsd, canRerun, onRerun, onClose }: Do
           {summary.status === 'card_removed' && <p className="banner-text">{CARD_REMOVED_MESSAGE}</p>}
           {summary.status === 'verify_failed' && <p className="banner-text">{VERIFY_FAILED_MESSAGE}</p>}
         </div>
+      )}
+
+      {summary.ai === 'off' && (
+        <p className="callout warn" role="status">
+          {NO_AI_DONE_MESSAGE}
+        </p>
       )}
 
       {summary.ai === 'unavailable' && (
@@ -166,7 +175,9 @@ export function Done({ run, summary, czkPerUsd, canRerun, onRerun, onClose }: Do
 
       <div className="card">
         <h2>Zkontroluj ručně</h2>
-        {manual.length === 0 ? (
+        {summary.ai === 'off' ? (
+          <p className="muted">Záloha proběhla bez třídění — klipy ve složce _nezařazeno roztřiď ručně.</p>
+        ) : manual.length === 0 ? (
           <p className="muted">Nic takového — všechno bylo zařazeno s jistotou.</p>
         ) : (
           <ul className="plain manual">

@@ -104,7 +104,14 @@ export function App() {
         startedAt: Date.now(),
       })
       dispatch({ kind: 'add', run })
-      const request: RunStartRequest = { cardRoot: card.root, eventName, isNew: form.isNew, templateId: form.templateId, rosterText: form.rosterText }
+      const request: RunStartRequest = {
+        cardRoot: card.root,
+        eventName,
+        isNew: form.isNew,
+        templateId: form.templateId,
+        rosterText: form.rosterText,
+        sort: form.sort,
+      }
       let result: Awaited<ReturnType<typeof window.api.startRun>>
       try {
         result = await window.api.startRun(request)

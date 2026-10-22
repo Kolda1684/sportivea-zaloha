@@ -3,8 +3,10 @@ import { parseRoster } from '../../core/roster'
 import type { CardDetected, Settings } from '../../shared/ipc-types'
 import { initialChoice, reconcileChoice, type EventChoice, type EventPreset } from '../eventChoice'
 import { defaultEventName, formatBytes, formatDateRange, plural } from '../format'
+import { BACKUP_ONLY_HINT } from '../strings'
 
-export type StartForm = { eventName: string; isNew: boolean; templateId: string; rosterText: string }
+/** `sort: false` = back up without the AI (no API key): everything goes to `_nezařazeno`. */
+export type StartForm = { eventName: string; isNew: boolean; templateId: string; rosterText: string; sort: boolean }
 
 type Props = {
   card: CardDetected
@@ -65,10 +67,12 @@ export function NewCard({ card, preset, settings, hasKey, waiting, onStart, onCa
   const eventName = mode === 'new' ? newName.trim() : existing
   const problem = mode === 'new' ? nameProblem(newName) : existing === '' ? 'Vyber akci.' : null
   const noRoot = settings.rootDir === null
-  const canStart = !busy && !noRoot && hasKey && problem === null && templateId !== ''
+  const formReady = !busy && !noRoot && problem === null && templateId !== ''
+  const canStart = formReady && hasKey
+  const canBackupOnly = formReady && !hasKey
 
-  const submit = async (): Promise<void> => {
-    if (!canStart) return
+  const submit = async (sort: boolean): Promise<void> => {
+    if (sort ? !canStart : !canBackupOnly) return
     setBusy(true)
     setError('')
     try {
@@ -81,7 +85,7 @@ export function NewCard({ card, preset, settings, hasKey, waiting, onStart, onCa
         }
         onSettings(saved.settings)
       }
-      const failure = await onStart({ eventName, isNew: mode === 'new', templateId, rosterText })
+      const failure = await onStart({ eventName, isNew: mode === 'new', templateId, rosterText, sort })
       if (failure !== null) setError(failure)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Zálohu se nepodařilo spustit.')
@@ -130,6 +134,7 @@ export function NewCard({ card, preset, settings, hasKey, waiting, onStart, onCa
       {!hasKey && (
         <div className="callout warn">
           <p>Chybí klíč ke Claude, bez něj se klipy nedají třídit. Zadej ho v nastavení.</p>
+          <p className="small">{BACKUP_ONLY_HINT}</p>
           <button type="button" onClick={onOpenSettings}>
             Otevřít nastavení
           </button>
@@ -140,7 +145,7 @@ export function NewCard({ card, preset, settings, hasKey, waiting, onStart, onCa
         className="stack"
         onSubmit={(e) => {
           e.preventDefault()
-          void submit()
+          void submit(true)
         }}
       >
         <fieldset className="card">
@@ -238,9 +243,15 @@ export function NewCard({ card, preset, settings, hasKey, waiting, onStart, onCa
         )}
 
         <div className="actions sticky">
-          <button type="submit" className="primary big" disabled={!canStart}>
-            {busy ? 'Spouštím…' : 'Start'}
-          </button>
+          {hasKey ? (
+            <button type="submit" className="primary big" disabled={!canStart}>
+              {busy ? 'Spouštím…' : 'Start'}
+            </button>
+          ) : (
+            <button type="button" className="primary big" disabled={!canBackupOnly} onClick={() => void submit(false)}>
+              {busy ? 'Spouštím…' : 'Zálohovat bez třídění'}
+            </button>
+          )}
           <button type="button" className="secondary" onClick={onCancel} disabled={busy}>
             Zrušit
           </button>

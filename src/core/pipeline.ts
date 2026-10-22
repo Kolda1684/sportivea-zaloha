@@ -22,7 +22,8 @@ export type RunOptions = {
   eventDir: string
   template: Template
   roster: RosterEntry[]
-  classifier: Classifier
+  /** null: back up without sorting (no API key) — every clip goes to `_nezařazeno`, markers and TOP are still detected. */
+  classifier: Classifier | null
   journal: Journal
   /** Parallel classifications (and API calls). Default 4. */
   concurrency?: number
@@ -63,9 +64,9 @@ export type RunSummary = {
   status: 'ok' | 'card_removed' | 'verify_failed' | 'aborted'
   /**
    * 'used': the classifier was asked for every clip; 'unavailable': it was given up after repeated API
-   * failures and the remaining clips were backed up unsorted.
+   * failures and the remaining clips were backed up unsorted; 'off': backup without sorting (no classifier).
    */
-  ai: 'used' | 'unavailable'
+  ai: 'used' | 'unavailable' | 'off'
 }
 
 const DEFAULT_CONCURRENCY = 4
@@ -77,6 +78,9 @@ export const ANALYSIS_FAILED = 'náhled klipu selhal'
 /** After this many API failures in a row the classifier is not asked again in this run. */
 const MAX_CONSECUTIVE_API_FAILURES = 5
 export const AI_UNAVAILABLE = 'AI nedostupná, zálohováno bez třídění'
+export const NO_AI = 'zálohováno bez třídění (bez API klíče)'
+/** Clips that were deliberately not sent to the classifier: noted as such, not as a failed classification. */
+const SORTING_SKIPPED: ReadonlySet<string> = new Set([AI_UNAVAILABLE, NO_AI])
 const SOURCE_GONE_CODES: ReadonlySet<string> = new Set(['ENOENT', 'EIO', 'ENXIO'])
 
 function errCode(e: unknown): string | undefined {
@@ -370,6 +374,8 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
         let result: ClassifyResult | undefined
         if (clip.analysisError !== undefined || !clip.meta) {
           result = failure(`${ANALYSIS_FAILED}: ${clip.analysisError ?? 'neznámá chyba'}`)
+        } else if (classifier === null) {
+          result = failure(NO_AI)
         } else if (aiUnavailable) {
           result = failure(AI_UNAVAILABLE)
         } else {
@@ -509,6 +515,8 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
         else notes.push('neplatná kategorie od klasifikátoru')
         if (isPlainName(candidate)) desiredName = candidate
         else notes.push('neplatný název od klasifikátoru, ponechán původní název')
+      } else if (result.error !== undefined && SORTING_SKIPPED.has(result.error)) {
+        notes.push(result.error)
       } else if (result.error !== undefined) {
         notes.push(`klasifikace selhala: ${result.error}`)
       } else {
@@ -655,7 +663,7 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
     others,
     costUsd: cost,
     csvPath,
-    ai: aiUnavailable ? 'unavailable' : 'used',
+    ai: classifier === null ? 'off' : aiUnavailable ? 'unavailable' : 'used',
     status: cardRemoved
       ? 'card_removed'
       : aborted && unplaced.length > 0

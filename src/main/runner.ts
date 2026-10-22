@@ -19,6 +19,7 @@ const requestSchema = z.object({
   isNew: z.boolean(),
   templateId: z.string().min(1).max(100),
   rosterText: z.string().max(20_000),
+  sort: z.boolean(),
 })
 
 export type Notice = { title: string; body: string }
@@ -119,8 +120,12 @@ export class Runner {
     if (!path.isAbsolute(rootDir) || !(await isDirectory(rootDir))) {
       return { ok: false, error: 'Složka pro akce není dostupná. Je Google Drive připojený?' }
     }
-    const apiKey = await this.deps.getApiKey()
-    if (apiKey === null || apiKey === '') return { ok: false, error: 'Chybí klíč ke Claude. Zadej ho v nastavení.' }
+    // Without sorting no key is needed: everything is backed up to _nezařazeno.
+    let apiKey: string | null = null
+    if (req.sort) {
+      apiKey = await this.deps.getApiKey()
+      if (apiKey === null || apiKey === '') return { ok: false, error: 'Chybí klíč ke Claude. Zadej ho v nastavení.' }
+    }
 
     const template = settings.templates.find((t) => t.id === req.templateId)
     if (!template) return { ok: false, error: 'Vybraná šablona kategorií neexistuje.' }
@@ -147,7 +152,7 @@ export class Runner {
     settings: Settings,
     rootDir: string,
     template: Settings['templates'][number],
-    apiKey: string,
+    apiKey: string | null,
   ): Promise<Result> {
     if (!isPlainFolderName(eventName)) return { ok: false, error: 'Název akce nesmí být prázdný ani obsahovat lomítka.' }
 
@@ -189,7 +194,7 @@ export class Runner {
     template: Settings['templates'][number],
     rosterText: string,
     settings: Settings,
-    apiKey: string,
+    apiKey: string | null,
   ): Promise<void> {
     const send = (event: RunEventPayload['event']): void => {
       try {
@@ -201,7 +206,8 @@ export class Runner {
     try {
       send({ type: 'started' })
       const journal = await Journal.load(this.deps.journalFile)
-      const classifier = (this.deps.makeClassifier ?? ((key, model) => new ClaudeClassifier({ apiKey: key, model })))(apiKey, settings.model)
+      const makeClassifier = this.deps.makeClassifier ?? ((key: string, model: string) => new ClaudeClassifier({ apiKey: key, model }))
+      const classifier = apiKey === null ? null : makeClassifier(apiKey, settings.model)
       const forward = (event: RunEvent): void => send(event)
       const summary = await (this.deps.run ?? runCard)(
         {

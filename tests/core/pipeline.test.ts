@@ -293,6 +293,24 @@ describe('runCard', () => {
     })
   })
 
+  it('backs up without sorting when there is no classifier: everything in _nezařazeno, markers and TOP still detected', { timeout: 120_000 }, async () => {
+    const { summary, events } = await run({ classifier: null })
+    expect(media(await listFiles(eventDir))).toEqual([
+      '_nezařazeno/C0001_TOP.MP4',
+      '_nezařazeno/C0003.MP4',
+      '_ostatni/DCIM/100MSDCF/DSC00001.JPG',
+      `_ostatni/${CLIP_DIR}/C0001M01.XML`,
+    ])
+    expect(await sha256File(path.join(eventDir, '_nezařazeno/C0001_TOP.MP4'))).toBe(await sha256File(clips.c1))
+    expect(summary).toMatchObject({ top: 1, markers: 1, unclassified: 2, status: 'ok', ai: 'off', costUsd: 0, verifyFailed: [] })
+    const rows = await readCsv(summary.csvPath)
+    const note = (name: string): string => rows.find((r) => r[0] === name)?.slice(3).join(';') ?? ''
+    expect(note('C0001.MP4')).toContain('bez třídění')
+    expect(note('C0001.MP4')).not.toContain('selhala')
+    expect(note('C0002.MP4')).toContain('černá značka')
+    expect(events.filter((e) => e.type === 'classified' && !e.marker)).toHaveLength(2)
+  })
+
   it('reports low-confidence clips', { timeout: 120_000 }, async () => {
     const low: ClassifyResult = { category: 'Zápas', description: 'sance', confidence: 'low', ok: true }
     const { summary } = await run({ classifier: fakeClassifier({ 'C0003.MP4': low }) })

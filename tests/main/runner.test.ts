@@ -59,6 +59,7 @@ const request = (over: Record<string, unknown> = {}): Record<string, unknown> =>
   isNew: true,
   templateId: 'fotbal',
   rosterText: '9 Kačor\n10 Provod',
+  sort: true,
   ...over,
 })
 
@@ -104,6 +105,13 @@ describe('Runner.start refusals', () => {
     const res = await makeRunner().start(request())
     expect(res.ok === false && res.error).toMatch(/klíč/)
     await expect(fs.stat(path.join(rootDir, 'Sparta - Slavia'))).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('refuses a request without the sort flag', async () => {
+    const { sort: _sort, ...rest } = request()
+    expect((await makeRunner().start(rest)).ok).toBe(false)
+    expect((await makeRunner().start(request({ sort: 'yes' }))).ok).toBe(false)
+    expect(runs).toHaveLength(0)
   })
 
   it('refuses a new event whose folder already exists and leaves it untouched', async () => {
@@ -223,6 +231,23 @@ describe('Runner.start', () => {
     await runner.start(request())
     await runner.idle()
     expect(seen).toBe('claude-haiku-5-5')
+  })
+
+  it('backs up without sorting (no classifier) when asked to, even without an API key', async () => {
+    apiKey = null
+    let made = 0
+    const runner = makeRunner({
+      makeClassifier: (): Classifier => {
+        made++
+        return { classify: async () => { throw new Error('unused') } }
+      },
+    })
+    expect(await runner.start(request({ sort: false }))).toEqual({ ok: true })
+    await runner.idle()
+    expect(runs).toHaveLength(1)
+    expect(runs[0]!.classifier).toBeNull()
+    expect(made).toBe(0)
+    expect((await fs.stat(path.join(rootDir, 'Sparta - Slavia'))).isDirectory()).toBe(true)
   })
 
   it('forwards waiting_space from the space waiter', async () => {

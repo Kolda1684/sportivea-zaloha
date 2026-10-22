@@ -49,6 +49,8 @@ export type RunStartRequest = {
   isNew: boolean
   templateId: string
   rosterText: string
+  /** true: sort with the AI (needs the API key); false: back up without sorting, everything to `_nezařazeno`. */
+  sort: boolean
 }
 
 /** `error` is a Czech sentence meant to be shown to the user. */
