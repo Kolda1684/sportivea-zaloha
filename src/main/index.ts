@@ -2,7 +2,7 @@ import { app, BrowserWindow, Notification } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { IPC, type RunEventPayload } from '../shared/ipc-types'
-import { describeCard } from './cardinfo'
+import { cardListener } from './cardinfo'
 import { registerIpc } from './ipc'
 import { Runner, type Notice } from './runner'
 import { loadApiKey } from './secrets'
@@ -131,15 +131,15 @@ if (!app.requestSingleInstanceLock()) {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
     })
 
-    stopWatching = watchVolumes((root) => {
-      void describeCard(root).then((card) => {
-        if (!card) return
+    // a card that cannot be described yet is looked at again on the watcher's next poll
+    stopWatching = watchVolumes(
+      cardListener((root, card) => {
         runner.registerCard(root)
         const window = bringToFront()
         app.dock?.bounce('informational')
         sendToRenderer(window, IPC.cardDetected, card)
-      })
-    })
+      }),
+    )
   })
 
   app.on('will-quit', () => {

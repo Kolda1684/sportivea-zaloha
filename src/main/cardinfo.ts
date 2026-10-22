@@ -30,3 +30,19 @@ export async function describeCard(root: string): Promise<CardDetected | null> {
     return null
   }
 }
+
+/**
+ * Watcher listener: describes the card and hands it to `onCard`. When the card cannot be described (null or
+ * an error), `retryLater` un-marks the volume so that the watcher examines it again on its next poll.
+ */
+export function cardListener(
+  onCard: (root: string, card: CardDetected) => void,
+  describe: (root: string) => Promise<CardDetected | null> = describeCard,
+): (root: string, retryLater: () => void) => void {
+  return (root, retryLater) => {
+    void describe(root).then((card) => {
+      if (!card) return retryLater()
+      onCard(root, card)
+    }, retryLater)
+  }
+}

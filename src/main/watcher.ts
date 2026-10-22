@@ -23,17 +23,19 @@ async function isBootVolume(p: string): Promise<boolean> {
 }
 
 /**
- * Calls `onCard(root)` once for every camera card that appears in `/Volumes`.
- * A card is reported again only after it has been removed and inserted again.
+ * Calls `onCard(root, retryLater)` once for every camera card that appears in `/Volumes`.
+ * A card is reported again only after it has been removed and inserted again, or after the listener
+ * called `retryLater()` (e.g. the card could not be read yet): then it is reported on the next poll.
  * Returns a function that stops watching.
  */
-export function watchVolumes(onCard: (root: string) => void, opts: WatchOptions = {}): () => void {
+export function watchVolumes(onCard: (root: string, retryLater: () => void) => void, opts: WatchOptions = {}): () => void {
   const volumesDir = opts.volumesDir ?? '/Volumes'
   const isCard = opts.isCard ?? looksLikeCard
   const debounceMs = opts.debounceMs ?? 2000
   const pollMs = opts.pollMs ?? 5000
 
-  const reported = new Set<string>()
+  /** Reported volume names; the token tells a stale `retryLater` from a newer report of the same name. */
+  const reported = new Map<string, object>()
   let stopped = false
   let scanning = false
   let timer: NodeJS.Timeout | undefined
@@ -49,7 +51,7 @@ export function watchVolumes(onCard: (root: string) => void, opts: WatchOptions 
         return
       }
       const present = new Set(names)
-      for (const name of reported) if (!present.has(name)) reported.delete(name)
+      for (const name of [...reported.keys()]) if (!present.has(name)) reported.delete(name)
       for (const name of names.sort()) {
         if (stopped) return
         if (reported.has(name) || name.startsWith('.')) continue
@@ -62,9 +64,13 @@ export function watchVolumes(onCard: (root: string) => void, opts: WatchOptions 
           card = false
         }
         if (!card || stopped) continue
-        reported.add(name)
+        const token = {}
+        reported.set(name, token)
+        const retryLater = (): void => {
+          if (reported.get(name) === token) reported.delete(name)
+        }
         try {
-          onCard(root)
+          onCard(root, retryLater)
         } catch {
           // a faulty listener must not stop the watcher
         }

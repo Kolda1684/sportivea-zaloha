@@ -24,7 +24,7 @@ async function waitFor(cond: () => boolean, ms = 3000): Promise<void> {
   while (!cond() && Date.now() < end) await wait(20)
 }
 
-function start(onCard: (root: string) => void, isCard?: (root: string) => Promise<boolean>) {
+function start(onCard: Parameters<typeof watchVolumes>[0], isCard?: (root: string) => Promise<boolean>) {
   const stop = watchVolumes(onCard, {
     volumesDir: volumes,
     debounceMs: 60,
@@ -108,6 +108,23 @@ describe('watchVolumes', () => {
     ready = true
     await waitFor(() => cards.length > 0)
     expect(cards).toEqual([path.join(volumes, 'LATE')])
+  })
+
+  it('reports a card again on the next poll when the listener could not use it (retryLater)', async () => {
+    const cards: string[] = []
+    let failures = 2
+    start((root, retryLater) => {
+      cards.push(root)
+      if (failures > 0) {
+        failures--
+        // e.g. describeCard returned null: asynchronously, like the real listener
+        setTimeout(retryLater, 10)
+      }
+    })
+    await fs.mkdir(path.join(volumes, 'CARD1', 'DCIM'), { recursive: true })
+    await waitFor(() => cards.length === 3)
+    await wait(500) // accepted now: not reported again
+    expect(cards).toEqual([path.join(volumes, 'CARD1'), path.join(volumes, 'CARD1'), path.join(volumes, 'CARD1')])
   })
 
   it('ignores the boot volume (symlink to /)', async () => {

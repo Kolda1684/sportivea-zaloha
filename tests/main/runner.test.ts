@@ -4,7 +4,7 @@ import * as path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Classifier } from '../../src/core/classifier'
 import type { RunEvent, RunOptions, RunSummary } from '../../src/core/pipeline'
-import { describeCard } from '../../src/main/cardinfo'
+import { cardListener, describeCard } from '../../src/main/cardinfo'
 import { FINAL_OK_MESSAGE, NOT_BACKED_UP, Runner, listEvents, noticeFor, type Notice, type RunnerDeps } from '../../src/main/runner'
 import { defaultSettings } from '../../src/main/settings'
 import type { RunEventPayload, Settings } from '../../src/shared/ipc-types'
@@ -362,5 +362,29 @@ describe('describeCard', () => {
   it('handles a card without videos and an unreadable card', async () => {
     expect(await describeCard(cardRoot)).toMatchObject({ videos: 0, bytes: 0, firstDate: null, lastDate: null })
     expect(await describeCard(path.join(base, 'gone'))).toBeNull()
+  })
+})
+
+describe('cardListener', () => {
+  const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 0))
+  const info = { root: '/Volumes/X', volumeName: 'X', videos: 1, bytes: 1, firstDate: null, lastDate: null }
+
+  it('hands a described card on and does not ask for a retry', async () => {
+    const seen: string[] = []
+    let retries = 0
+    cardListener((root) => seen.push(root), async () => info)('/Volumes/X', () => retries++)
+    await flush()
+    expect(seen).toEqual(['/Volumes/X'])
+    expect(retries).toBe(0)
+  })
+
+  it('asks the watcher to retry when the card cannot be described (null or error)', async () => {
+    const seen: string[] = []
+    let retries = 0
+    cardListener((root) => seen.push(root), async () => null)('/Volumes/X', () => retries++)
+    cardListener((root) => seen.push(root), async () => Promise.reject(new Error('EIO')))('/Volumes/X', () => retries++)
+    await flush()
+    expect(seen).toEqual([])
+    expect(retries).toBe(2)
   })
 })
