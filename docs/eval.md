@@ -4,14 +4,22 @@
 
 ## Status
 
-**Results pending.** No live run has been made: there is no Anthropic API key on the dev machine and the run budget has not been approved by Jan. Target (spec): at least 90 % category accuracy for `claude-sonnet-5-5`. Fill the table below after the first approved run.
+First live run 2026-10-23 on the Istanbul card (170 clips, default `fotbal` template, no roster). Target (spec): ≥ 90 % for `claude-sonnet-5-5` — **not met yet**.
 
 | Set | Model | Clips | Accuracy | Cost USD | Cost CZK |
 | --- | --- | --- | --- | --- | --- |
-| istanbul | claude-haiku-5-5 | 170 | pending | pending | pending |
-| istanbul | claude-sonnet-5-5 | 170 | pending | pending | pending |
+| istanbul | claude-sonnet-5-5 | 170 | 135/170 = 79.4 % | 0.381 | 8.76 |
+| istanbul | claude-haiku-5-5 | 170 | 121/170 = 71.2 % | 0.020 | 0.46 |
 
-Rough pre-run estimate: the script prints its own (`estimateRun` in `scripts/eval-lib.ts`, ~1500 input + ~120 output tokens per clip, no cache credit). Planned budget for both models on Istanbul: under 30 Kč.
+Sonnet per category: Trénink 72.1 % (80/111), předzápas 100 % (6/6), rozcvička 90 % (9/10), nástup 83 % (5/6), Zápas 96.8 % (30/31), děkovačka 83 % (5/6).
+
+Findings:
+- 29 of 35 Sonnet errors are one confusion: Trénink → rozcvička. Training drills the day before the match (19. 10.) look like the pre-match warm-up (20. 10.) on a 4-frame contact sheet; the model cannot tell which day is match day. Without this confusion Sonnet would be 164/170 = 96.5 %.
+- Remaining errors: 4 low-confidence clips sent to `_nezařazeno` (flags, blurred pan, fans behind a fence, walk along the goal) — the intended safe fallback; 2 borderline (corner flag → předzápas, Champions League logo before the line-up → předzápas).
+- Haiku is worse across all categories, not only Trénink; keep Sonnet as default.
+- Actual cost was about half the pre-run estimate (prompt caching).
+
+Next: give the classifier the match day (or tighten the Trénink/rozcvička hints) and re-run.
 
 ## How to run
 
