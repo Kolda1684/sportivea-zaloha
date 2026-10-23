@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { baseName, defaultEventName, formatBytes, formatCzk, formatDateRange, plural, classifyFailureMessage } from '../../src/renderer/format'
+import { baseName, defaultEventName, drivePath, formatBytes, formatCzk, formatDateRange, plural, classifyFailureMessage } from '../../src/renderer/format'
 
 const NB = ' '
 
@@ -110,5 +110,18 @@ describe('classifyFailureMessage', () => {
     expect(classifyFailureMessage(1)).toBe('1 klip se nepodařilo roztřídit — je ve složce _nezařazeno')
     expect(classifyFailureMessage(3)).toBe('3 klipy se nepodařilo roztřídit — jsou ve složce _nezařazeno')
     expect(classifyFailureMessage(8)).toBe('8 klipů se nepodařilo roztřídit — jsou ve složce _nezařazeno')
+  })
+})
+
+describe('drivePath', () => {
+  it('shows a Google Drive for desktop path from the drive root', () => {
+    expect(drivePath('/Users/kolda/Library/CloudStorage/GoogleDrive-jan.kolar@sportivea.cz/Sdílené disky/Sportivea sdílený disk/Test - třídění')).toBe(
+      'Google Disk › Sdílené disky › Sportivea sdílený disk › Test - třídění',
+    )
+    expect(drivePath('/Users/kolda/Library/CloudStorage/GoogleDrive-jan.kolar@sportivea.cz/Můj disk/Akce')).toBe('Google Disk › Můj disk › Akce')
+  })
+
+  it('keeps any other path as it is', () => {
+    expect(drivePath('/Volumes/Archiv/Akce')).toBe('/Volumes/Archiv/Akce')
   })
 })

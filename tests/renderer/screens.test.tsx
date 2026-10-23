@@ -66,12 +66,12 @@ const settings: Settings = {
   czkPerUsd: 23,
 }
 
-function renderNewCard(hasKey: boolean, toolsOk = true): string {
+function renderNewCard(hasKey: boolean, toolsOk = true, rootDir: string | null = settings.rootDir): string {
   return renderToStaticMarkup(
     <NewCard
       card={card}
       preset={undefined}
-      settings={settings}
+      settings={{ ...settings, rootDir }}
       hasKey={hasKey}
       toolsOk={toolsOk}
       waiting={0}
@@ -99,6 +99,21 @@ describe('NewCard', () => {
     expect(withKey).toMatch(/<button type="submit" class="primary big" disabled="">Start<\/button>/)
     expect(renderNewCard(false, false)).toMatch(/<button type="button" class="primary big" disabled="">Zálohovat bez třídění<\/button>/)
     expect(renderNewCard(true, true)).not.toContain(TOOLS_MISSING_MESSAGE)
+  })
+
+  it('shows the destination folder on the card screen with a button to change it', () => {
+    const html = renderNewCard(true, true, '/Users/kolda/Library/CloudStorage/GoogleDrive-jan.kolar@sportivea.cz/Můj disk/Akce')
+    expect(html).toContain('Kam nahrát')
+    expect(html).toContain('Google Disk › Můj disk › Akce')
+    expect(html).toContain('Změnit složku')
+  })
+
+  it('asks for the destination folder on the card screen when none is chosen yet', () => {
+    const html = renderNewCard(true, true, null)
+    expect(html).toContain('Kam nahrát')
+    expect(html).toContain('Vybrat složku')
+    expect(html).not.toContain('Otevřít nastavení')
+    expect(html).toMatch(/<button type="submit" class="primary big" disabled="">Start<\/button>/)
   })
 
   it('shows only the normal start with an API key', () => {

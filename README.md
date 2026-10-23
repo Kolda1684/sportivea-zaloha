@@ -22,7 +22,7 @@ Aplikace je interní a nepodepsaná, jen pro Apple Silicon (M1 a novější).
 
 Otevři **Nastavení** v aplikaci:
 
-1. **Kořenová složka**: tlačítkem vyber složku na sdíleném disku (v `~/Library/CloudStorage/GoogleDrive-…/Sdílené disky/…`). Pod ní aplikace nabízí složky akcí a zakládá nové. Cestu nelze vepsat, jen vybrat.
+1. **Kořenová složka** (výchozí cíl): tlačítkem vyber složku na sdíleném disku (v `~/Library/CloudStorage/GoogleDrive-…/Sdílené disky/…`). Pod ní aplikace nabízí složky akcí a zakládá nové. Cestu nelze vepsat, jen vybrat. Jde ji změnit i přímo na obrazovce „Nová karta“.
 2. **API klíč**: vlož klíč od Anthropic. Uloží se do Klíčenky macOS, nikam jinam.
 3. **Model**: výchozí Claude Sonnet 5.5 (nejlepší poměr cena/kvalita). Jde přepnout na Opus 5.5 (dražší) nebo Haiku 5.5 (levnější).
 4. **Šablony kategorií**: výchozí jsou Fotbal a Tenis. Kategorie lze přidat, přejmenovat, smazat a upravit jejich popis pro model.
@@ -30,11 +30,12 @@ Otevři **Nastavení** v aplikaci:
 ## Běžné použití
 
 1. **Zasuň kartu.** Aplikace ji pozná a otevře okno „Nová karta“.
-2. Vyber **složku akce** (existující, nebo založ novou, např. `2026-10-20 Fenerbahçe – Slavia`) a **šablonu**. Volitelně vlož soupisku (číslo a jméno hráče).
-3. Zmáčkni **Start**. Průběh je vidět v okně, kameraman může odejít.
+2. Zkontroluj **Kam nahrát**: nahoře je vidět cílová složka na Disku (naposledy použitá), tlačítkem **Změnit složku** vybereš jinou.
+3. Vyber **složku akce** (existující, nebo založ novou, např. `2026-10-20 Fenerbahçe – Slavia`) a **šablonu**. Volitelně vlož soupisku (číslo a jméno hráče).
+4. Zmáčkni **Start**. Průběh je vidět v okně, kameraman může odejít.
    Bez uloženého API klíče je místo Startu tlačítko **Zálohovat bez třídění**: všechny klipy se zálohují do `_nezařazeno` pod původním názvem (TOP záběr jako `<název>_TOP`), černé značky a TOP záběry se pořád poznají, ověření a CSV fungují stejně.
-4. **Počkej na zelené potvrzení**: „Zapsáno a ověřeno. Kartu můžeš vytáhnout. Drive dokončuje upload, kartu formátuj až po jeho dokončení (ikona Drive v liště).“
-5. **Kartu neformátuj, dokud Drive nedokončí upload.** Potvrzení znamená, že soubory jsou správně zapsané ve složce Drivu, ne že už jsou v cloudu. Upload dělá Drive na pozadí. Karta se formátuje vždy až ve fotoaparátu.
+5. **Počkej na zelené potvrzení**: „Zapsáno a ověřeno. Kartu můžeš vytáhnout. Drive dokončuje upload, kartu formátuj až po jeho dokončení (ikona Drive v liště).“
+6. **Kartu neformátuj, dokud Drive nedokončí upload.** Potvrzení znamená, že soubory jsou správně zapsané ve složce Drivu, ne že už jsou v cloudu. Upload dělá Drive na pozadí. Karta se formátuje vždy až ve fotoaparátu.
 
 Do zeleného potvrzení aplikace velkým textem říká „Karta ještě NENÍ zálohovaná“.
 

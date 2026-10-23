@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from 'react'
 import { parseRoster } from '../../core/roster'
 import type { CardDetected, Settings } from '../../shared/ipc-types'
 import { initialChoice, reconcileChoice, type EventChoice, type EventPreset } from '../eventChoice'
-import { defaultEventName, formatBytes, formatDateRange, plural } from '../format'
+import { defaultEventName, drivePath, formatBytes, formatDateRange, plural } from '../format'
 import { BACKUP_ONLY_HINT, TOOLS_MISSING_MESSAGE } from '../strings'
 
 /** `sort: false` = back up without the AI (no API key): everything goes to `_nezařazeno`. */
@@ -49,8 +49,10 @@ export function NewCard({ card, preset, settings, hasKey, toolsOk, waiting, onSt
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
+  // the event list belongs to the destination folder, so it is reloaded whenever that folder changes
   useEffect(() => {
     let alive = true
+    setEvents(null)
     void window.api.listEvents().then((list) => {
       if (!alive) return
       setEvents(list)
@@ -59,7 +61,16 @@ export function NewCard({ card, preset, settings, hasKey, toolsOk, waiting, onSt
     return () => {
       alive = false
     }
-  }, [])
+  }, [settings.rootDir])
+
+  const pickRoot = async (): Promise<void> => {
+    setError('')
+    const dir = await window.api.pickRootFolder()
+    if (dir === null) return
+    const result = await window.api.setSettings({ rootDir: dir })
+    if (result.ok) onSettings(result.settings)
+    else setError(result.error)
+  }
 
   const teams = Object.keys(settings.rosters).sort((a, b) => a.localeCompare(b, 'cs'))
   const savedText = rosterChoice !== '' && rosterChoice !== NEW_ROSTER ? (settings.rosters[rosterChoice] ?? '') : ''
@@ -130,15 +141,6 @@ export function NewCard({ card, preset, settings, hasKey, toolsOk, waiting, onSt
         </p>
       )}
 
-      {noRoot && (
-        <div className="callout warn">
-          <p>Nejdřív vyber složku na Google Disku, do které se budou ukládat akce.</p>
-          <button type="button" onClick={onOpenSettings}>
-            Otevřít nastavení
-          </button>
-        </div>
-      )}
-
       {!hasKey && (
         <div className="callout warn">
           <p>Chybí klíč ke Claude, bez něj se klipy nedají třídit. Zadej ho v nastavení.</p>
@@ -156,6 +158,20 @@ export function NewCard({ card, preset, settings, hasKey, toolsOk, waiting, onSt
           void submit(true)
         }}
       >
+        <fieldset className="card">
+          <legend>Kam nahrát</legend>
+          {noRoot ? (
+            <p className="muted small">Vyber složku na Google Disku, do které se má akce uložit.</p>
+          ) : (
+            <p className="path">{drivePath(settings.rootDir ?? '')}</p>
+          )}
+          <div className="actions">
+            <button type="button" className="secondary" onClick={() => void pickRoot()} disabled={busy}>
+              {noRoot ? 'Vybrat složku' : 'Změnit složku'}
+            </button>
+          </div>
+        </fieldset>
+
         <fieldset className="card">
           <legend>Akce</legend>
           <div className="radio-row">

@@ -75,6 +75,13 @@ export function baseName(p: string): string {
   return i === -1 ? p : p.slice(i + 1)
 }
 
+/** A Google Drive for desktop path shown from the drive root ("Google Disk › Sdílené disky › …"); other paths unchanged. */
+export function drivePath(p: string): string {
+  const m = /^\/Users\/[^/]+\/Library\/CloudStorage\/GoogleDrive-[^/]+\/(.+)$/.exec(p)
+  if (!m || m[1] === undefined) return p
+  return ['Google Disk', ...m[1].split('/').filter((s) => s !== '')].join(' › ')
+}
+
 /** Czech plural: 1 klip, 2-4 klipy, 0 and 5+ klipů. */
 export function plural(n: number, one: string, few: string, many: string): string {
   if (n === 1) return one
