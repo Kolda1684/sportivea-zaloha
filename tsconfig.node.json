@@ -1,7 +1,10 @@
 {
   "compilerOptions": {
     "target": "ES2023",
-    "lib": ["ES2023"],
+    "lib": [
+      "ES2023",
+      "ES2024.String"
+    ],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
@@ -12,7 +15,9 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
-    "types": ["node"]
+    "types": [
+      "node"
+    ]
   },
   "include": [
     "src/main/**/*",
@@ -25,5 +30,7 @@
     "electron.vite.config.ts",
     "vitest.config.ts"
   ],
-  "exclude": ["tests/**/*.tsx"]
+  "exclude": [
+    "tests/**/*.tsx"
+  ]
 }

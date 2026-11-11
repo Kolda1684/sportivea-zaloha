@@ -16,9 +16,9 @@ import {
   writeResultsCsv,
   type EvalRow,
 } from '../../scripts/eval-lib'
-import type { Classifier, ClassifyInput, ClassifyResult } from '../../src/core/classifier'
-import type { ClipMeta } from '../../src/core/probe'
-import { DEFAULT_TEMPLATES, UNCLASSIFIED } from '../../src/core/templates'
+import type { Classifier, ClassifyInput, ClassifyResult } from '../../src/core/cards/classifier'
+import type { ClipMeta } from '../../src/core/cards/probe'
+import { DEFAULT_TEMPLATES, UNCLASSIFIED } from '../../src/core/cards/templates'
 
 const fotbal = DEFAULT_TEMPLATES.find((t) => t.id === 'fotbal')!
 

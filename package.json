@@ -1,8 +1,8 @@
 {
-  "name": "trideni-karet",
+  "name": "sportivea-zaloha",
   "version": "0.1.0",
   "private": true,
-  "description": "Třídění karet — sorts camera-card footage and copies it to Google Drive",
+  "description": "Sportivea Záloha — downloads Drive folders to a disk and sorts camera cards into a Google Drive folder",
   "main": "./out/main/index.js",
   "type": "module",
   "scripts": {
@@ -11,13 +11,14 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "eval": "tsx --env-file-if-exists=.env scripts/eval.ts",
-    "app": "node scripts/bundle-ffprobe.mjs --require && electron-vite build && electron-packager . \"Trideni karet\" --platform=darwin --arch=arm64 --out=dist --overwrite --asar.unpackDir=\"node_modules/ffmpeg-static\" --extra-resource=resources/bin --ignore=\"^/(src|tests|docs|scripts|resources|tsconfig.*|electron\\.vite\\.config\\.ts|vitest\\.config\\.ts|\\.gitignore|\\.env.*|CLAUDE\\.md|node_modules/\\.vite|node_modules/ffprobe-static/bin|\\.superpowers|eval-results|dist)\"",
+    "app": "node scripts/bundle-ffprobe.mjs --require && electron-vite build && electron-packager . \"Sportivea Záloha\" --platform=darwin --arch=arm64 --out=dist --overwrite --app-bundle-id=cz.sportivea.zaloha --asar.unpackDir=\"node_modules/ffmpeg-static\" --extra-resource=resources/bin --ignore=\"^/(src|tests|docs|scripts|resources|tsconfig.*|electron\\.vite\\.config\\.ts|vitest\\.config\\.ts|\\.gitignore|\\.env.*|CLAUDE\\.md|README\\.md|node_modules/\\.vite|node_modules/ffprobe-static/bin|\\.superpowers|eval-results|dist)\" && sh scripts/sign-and-zip.sh \"dist/Sportivea Záloha-darwin-arm64/Sportivea Záloha.app\" \"dist/Sportivea-Zaloha.zip\"",
     "postinstall": "node scripts/bundle-ffprobe.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.1.0",
     "ffmpeg-static": "5.3.0",
     "ffprobe-static": "3.1.0",
+    "google-auth-library": "11.3.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "zod": "4.6.7"

@@ -5,10 +5,10 @@
  */
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { ClaudeClassifier } from '../src/core/classifier'
-import { contactSheet } from '../src/core/frames'
-import { probeClip } from '../src/core/probe'
-import { DEFAULT_TEMPLATES } from '../src/core/templates'
+import { ClaudeClassifier } from '../src/core/cards/classifier'
+import { contactSheet } from '../src/core/cards/frames'
+import { probeClip } from '../src/core/cards/probe'
+import { DEFAULT_TEMPLATES } from '../src/core/cards/templates'
 import {
   EVAL_SETS,
   EvalUsageError,

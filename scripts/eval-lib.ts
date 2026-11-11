@@ -1,10 +1,10 @@
 import { mkdir, readdir, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { parseArgs } from 'node:util'
-import type { Classifier, ClassifyResult } from '../src/core/classifier'
-import { costUsd, isKnownModel } from '../src/core/pricing'
-import type { ClipMeta } from '../src/core/probe'
-import { UNCLASSIFIED, type Template } from '../src/core/templates'
+import type { Classifier, ClassifyResult } from '../src/core/cards/classifier'
+import { costUsd, isKnownModel } from '../src/core/cards/pricing'
+import type { ClipMeta } from '../src/core/cards/probe'
+import { UNCLASSIFIED, type Template } from '../src/core/cards/templates'
 
 /* ---------- reference sets ---------- */
 

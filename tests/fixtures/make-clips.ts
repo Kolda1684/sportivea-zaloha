@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { mkdir, rename } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ffmpegPath } from '../../src/core/bin'
+import { ffmpegPath } from '../../src/core/cards/bin'
 
 export type FixtureClips = { black: string; bright: string; halfDark: string; rotated: string }
 
