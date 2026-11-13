@@ -1,13 +1,13 @@
 import { useEffect, useId, useState } from 'react'
 import { parseRoster } from '../../../core/cards/roster'
-import type { CardDetected, Settings } from '../../../shared/cards-ipc'
+import type { CardDetected, CardMode, Settings } from '../../../shared/cards-ipc'
 import { api } from '../api'
 import { initialChoice, reconcileChoice, type EventChoice, type EventPreset } from '../eventChoice'
 import { defaultEventName, drivePath, formatBytes, formatDateRange, plural } from '../format'
-import { BACKUP_ONLY_HINT, TOOLS_MISSING_MESSAGE } from '../strings'
+import { CARD_MODES, KEY_MISSING_HINT, TOOLS_MISSING_MESSAGE } from '../strings'
 
-/** `sort: false` = back up without the AI (no API key): everything goes to `_nezařazeno`. */
-export type StartForm = { eventName: string; isNew: boolean; templateId: string; rosterText: string; sort: boolean }
+/** `mode`: what happens to the card ('copy' needs neither the API key nor a template). */
+export type StartForm = { eventName: string; isNew: boolean; templateId: string; rosterText: string; mode: CardMode }
 
 type Props = {
   card: CardDetected
@@ -35,7 +35,7 @@ function nameProblem(name: string): string | null {
 }
 
 export function NewCard({ card, preset, settings, hasKey, toolsOk, waiting, onStart, onCancel, onSettings, onOpenSettings }: Props) {
-  const ids = { mode: useId(), existing: useId(), name: useId(), template: useId(), roster: useId(), team: useId(), text: useId() }
+  const ids = { cardMode: useId(), mode: useId(), existing: useId(), name: useId(), template: useId(), roster: useId(), team: useId(), text: useId() }
   const firstDate = card.firstDate !== null && !Number.isNaN(new Date(card.firstDate).getTime()) ? new Date(card.firstDate) : new Date()
 
   const [events, setEvents] = useState<string[] | null>(null)
@@ -44,6 +44,8 @@ export function NewCard({ card, preset, settings, hasKey, toolsOk, waiting, onSt
   const [templateId, setTemplateId] = useState(
     settings.templates.some((t) => t.id === settings.lastTemplateId) ? settings.lastTemplateId : (settings.templates[0]?.id ?? ''),
   )
+  // without a key only plain upload is possible
+  const [cardMode, setCardMode] = useState<CardMode>(hasKey ? 'sort' : 'copy')
   const [rosterChoice, setRosterChoice] = useState('')
   const [team, setTeam] = useState('')
   const [pasted, setPasted] = useState('')
@@ -81,12 +83,13 @@ export function NewCard({ card, preset, settings, hasKey, toolsOk, waiting, onSt
   const eventName = mode === 'new' ? newName.trim() : existing
   const problem = mode === 'new' ? nameProblem(newName) : existing === '' ? 'Vyber akci.' : null
   const noRoot = settings.rootDir === null
-  const formReady = toolsOk && !busy && !noRoot && problem === null && templateId !== ''
-  const canStart = formReady && hasKey
-  const canBackupOnly = formReady && !hasKey
+  const usesAi = cardMode !== 'copy'
+  // plain upload analyses nothing: it needs neither ffprobe/ffmpeg nor the key nor a template
+  const canStart =
+    !busy && !noRoot && problem === null && (!usesAi || (toolsOk && hasKey)) && (cardMode !== 'sort' || templateId !== '')
 
-  const submit = async (sort: boolean): Promise<void> => {
-    if (sort ? !canStart : !canBackupOnly) return
+  const submit = async (): Promise<void> => {
+    if (!canStart) return
     setBusy(true)
     setError('')
     try {
@@ -99,7 +102,7 @@ export function NewCard({ card, preset, settings, hasKey, toolsOk, waiting, onSt
         }
         onSettings(saved.settings)
       }
-      const failure = await onStart({ eventName, isNew: mode === 'new', templateId, rosterText, sort })
+      const failure = await onStart({ eventName, isNew: mode === 'new', templateId, rosterText: usesAi ? rosterText : '', mode: cardMode })
       if (failure !== null) setError(failure)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Zálohu se nepodařilo spustit.')
@@ -144,8 +147,8 @@ export function NewCard({ card, preset, settings, hasKey, toolsOk, waiting, onSt
 
       {!hasKey && (
         <div className="callout warn">
-          <p>Chybí klíč ke Claude, bez něj se klipy nedají třídit. Zadej ho v nastavení.</p>
-          <p className="small">{BACKUP_ONLY_HINT}</p>
+          <p>{KEY_MISSING_HINT}</p>
+          <p className="small">Klíč zadáš v nastavení.</p>
           <button type="button" onClick={onOpenSettings}>
             Otevřít nastavení
           </button>
@@ -156,9 +159,27 @@ export function NewCard({ card, preset, settings, hasKey, toolsOk, waiting, onSt
         className="stack"
         onSubmit={(e) => {
           e.preventDefault()
-          void submit(true)
+          void submit()
         }}
       >
+        <fieldset className="card">
+          <legend>Co s kartou</legend>
+          {CARD_MODES.map((m) => (
+            <label key={m.mode} className="choice">
+              <input
+                type="radio"
+                name={ids.cardMode}
+                value={m.mode}
+                checked={cardMode === m.mode}
+                disabled={m.mode !== 'copy' && !hasKey}
+                onChange={() => setCardMode(m.mode)}
+              />
+              {m.label}
+              <span className="choice-hint muted small">{m.hint}</span>
+            </label>
+          ))}
+        </fieldset>
+
         <fieldset className="card">
           <legend>Kam nahrát</legend>
           {noRoot ? (
@@ -219,47 +240,51 @@ export function NewCard({ card, preset, settings, hasKey, toolsOk, waiting, onSt
           {problem !== null && mode === 'new' && newName.trim() !== '' && <p className="field-error">{problem}</p>}
         </fieldset>
 
-        <fieldset className="card">
-          <legend>Šablona kategorií</legend>
-          <select id={ids.template} aria-label="Šablona kategorií" value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
-            {settings.templates.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </fieldset>
+        {cardMode === 'sort' && (
+          <fieldset className="card">
+            <legend>Šablona kategorií</legend>
+            <select id={ids.template} aria-label="Šablona kategorií" value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
+              {settings.templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </fieldset>
+        )}
 
-        <fieldset className="card">
-          <legend>Soupiska (nepovinná)</legend>
-          <p className="muted small">S číslem na dresu a soupiskou umí třídění připsat do názvu příjmení hráče.</p>
-          <select id={ids.roster} aria-label="Soupiska" value={rosterChoice} onChange={(e) => setRosterChoice(e.target.value)}>
-            <option value="">Bez soupisky</option>
-            {teams.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-            <option value={NEW_ROSTER}>Nová soupiska…</option>
-          </select>
-          {savedText !== '' && (
-            <p className="muted small">
-              {players} {plural(players, 'hráč', 'hráči', 'hráčů')} v uložené soupisce.
-            </p>
-          )}
-          {rosterChoice === NEW_ROSTER && (
-            <div className="stack tight">
-              <label htmlFor={ids.team}>Název týmu (pod ním se soupiska uloží)</label>
-              <input id={ids.team} type="text" value={team} onChange={(e) => setTeam(e.target.value)} placeholder="např. Slavia" />
-              <label htmlFor={ids.text}>Soupiska — každý hráč na jeden řádek, např. „9 Kačor“</label>
-              <textarea id={ids.text} rows={6} value={pasted} onChange={(e) => setPasted(e.target.value)} spellCheck={false} />
+        {usesAi && (
+          <fieldset className="card">
+            <legend>Soupiska (nepovinná)</legend>
+            <p className="muted small">S číslem na dresu a soupiskou umí třídění připsat do názvu příjmení hráče.</p>
+            <select id={ids.roster} aria-label="Soupiska" value={rosterChoice} onChange={(e) => setRosterChoice(e.target.value)}>
+              <option value="">Bez soupisky</option>
+              {teams.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+              <option value={NEW_ROSTER}>Nová soupiska…</option>
+            </select>
+            {savedText !== '' && (
               <p className="muted small">
-                Rozpoznáno hráčů: {players}.
-                {team.trim() !== '' && pasted.trim() !== '' ? ' Soupiska se uloží pro příště.' : ' Bez názvu týmu se soupiska použije jen teď a neuloží se.'}
+                {players} {plural(players, 'hráč', 'hráči', 'hráčů')} v uložené soupisce.
               </p>
-            </div>
-          )}
-        </fieldset>
+            )}
+            {rosterChoice === NEW_ROSTER && (
+              <div className="stack tight">
+                <label htmlFor={ids.team}>Název týmu (pod ním se soupiska uloží)</label>
+                <input id={ids.team} type="text" value={team} onChange={(e) => setTeam(e.target.value)} placeholder="např. Slavia" />
+                <label htmlFor={ids.text}>Soupiska — každý hráč na jeden řádek, např. „9 Kačor“</label>
+                <textarea id={ids.text} rows={6} value={pasted} onChange={(e) => setPasted(e.target.value)} spellCheck={false} />
+                <p className="muted small">
+                  Rozpoznáno hráčů: {players}.
+                  {team.trim() !== '' && pasted.trim() !== '' ? ' Soupiska se uloží pro příště.' : ' Bez názvu týmu se soupiska použije jen teď a neuloží se.'}
+                </p>
+              </div>
+            )}
+          </fieldset>
+        )}
 
         {error && (
           <p className="callout bad" role="alert">
@@ -268,15 +293,9 @@ export function NewCard({ card, preset, settings, hasKey, toolsOk, waiting, onSt
         )}
 
         <div className="actions sticky">
-          {hasKey ? (
-            <button type="submit" className="primary big" disabled={!canStart}>
-              {busy ? 'Spouštím…' : 'Start'}
-            </button>
-          ) : (
-            <button type="button" className="primary big" disabled={!canBackupOnly} onClick={() => void submit(false)}>
-              {busy ? 'Spouštím…' : 'Zálohovat bez třídění'}
-            </button>
-          )}
+          <button type="submit" className="primary big" disabled={!canStart}>
+            {busy ? 'Spouštím…' : 'Start'}
+          </button>
           <button type="button" className="secondary" onClick={onCancel} disabled={busy}>
             Zrušit
           </button>

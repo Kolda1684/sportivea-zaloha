@@ -95,6 +95,11 @@ check('no /Users/kolda paths anywhere in app.asar', () => {
   if (hits.length > 0) throw new Error(hits.join(', '))
 })
 
+check('renderer bundle has no Node code (the sandboxed window would stay blank)', () => {
+  const hits = files.filter((p) => p.startsWith('out/renderer/') && p.endsWith('.js') && /createRequire|require\("node:|from "node:/.test(asarText(p)))
+  if (hits.length > 0) throw new Error(hits.join(', '))
+})
+
 check('runtime dependencies shipped', () => {
   for (const dep of ['node_modules/google-auth-library/package.json', 'node_modules/@anthropic-ai/sdk/package.json', 'node_modules/zod/package.json']) {
     if (!entries.includes(dep)) throw new Error(`missing ${dep}`)

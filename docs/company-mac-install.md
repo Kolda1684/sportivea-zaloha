@@ -47,7 +47,7 @@ Aplikace pozná kartu, jen když běží. **Nastavení systému → Obecné → 
 ## Pravidla
 
 - **Jednu kartu nahrávej jen na jednom počítači.** Každý Mac si pamatuje jen svoje nahrané karty. Kdyby se stejná karta nahrála na dvou Macích do stejné akce, nic se nesmaže ani nepřepíše, jen vzniknou kopie s „(2)“.
-- Po instalaci **nové verze** se macOS může jednou zeptat na heslo uživatele kvůli Klíčence. Zadej ho a dej **Vždy povolit**. Kdybys dal Zamítnout, aplikace nepřečte klíč ke Claude (karty se pak jen zazálohují bez třídění) a požádá o nové přihlášení ke Googlu.
+- Po instalaci **nové verze** se macOS může jednou zeptat na heslo uživatele kvůli Klíčence. Zadej ho a dej **Vždy povolit**. Kdybys dal Zamítnout, aplikace nepřečte klíč ke Claude (karty pak půjde jen nahrát beze změny) a požádá o nové přihlášení ke Googlu.
 - Na **tvém Macu**: po instalaci nové aplikace už nespouštěj staré Stahování z Disku a Třídění karet. Hlavně Třídění karet, protože by se na stejnou kartu ozvaly obě. Rozdělané stahování ze staré aplikace dokončíš v nové: vlož stejný odkaz a vyber stejný cíl. Staré aplikace smaž, až budeš spokojený.
 
 ## Aktualizace

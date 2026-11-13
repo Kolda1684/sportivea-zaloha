@@ -1,6 +1,22 @@
 export type Category = { name: string; hint: string }
 export type Template = { id: string; name: string; categories: Category[] }
 
+/**
+ * Template for the 'name' card mode: the classifier only writes the description; the single category is ignored
+ * (every clip goes straight into the event folder).
+ */
+export const NAME_ONLY_TEMPLATE: Template = {
+  id: '_jen-pojmenovat',
+  name: 'Jen pojmenovat',
+  categories: [{ name: 'Klip', hint: 'jakýkoli záběr z karty; kategorie se nepoužívá, důležitý je jen krátký výstižný popis děje' }],
+}
+
+/**
+ * `folder` value of files placed directly in the event folder ('name' and 'copy' card modes). Lives here, not in
+ * pipeline.ts, because the renderer may import values from this module (it has no Node imports).
+ */
+export const EVENT_ROOT = ''
+
 /** Folder for clips the classifier could not place (or whose classification failed). */
 export const UNCLASSIFIED = '_nezařazeno'
 /** Folder for non-video files found on the card. */

@@ -481,6 +481,58 @@ describe('runCard', () => {
     expect(rows.find((r) => r[0] === 'C0003.MP4')?.[2]).toBe('(nekopírováno)')
   })
 
+  it('copy mode copies every file flat into the event folder with original names, without analysing', { timeout: 120_000 }, async () => {
+    const classifier: Classifier = { classify: async () => { throw new Error('copy mode must not classify') } }
+    await put('DCIM/101MSDCF/DSC00001.JPG', Buffer.from([0xff, 0xd8, 0x00, 0xff, 0xd9])) // same name, other content
+    const { summary } = await run({ mode: 'copy', classifier })
+    expect(media(await listFiles(eventDir))).toEqual([
+      'C0001.MP4',
+      'C0001M01.XML',
+      'C0002.MP4', // the black marker is copied too
+      'C0003.MP4',
+      'DSC00001 (2).JPG',
+      'DSC00001.JPG',
+    ])
+    expect(await sha256File(path.join(eventDir, 'C0002.MP4'))).toBe(await sha256File(clips.c2))
+    expect(summary).toMatchObject({ mode: 'copy', ai: 'off', status: 'ok', top: 0, markers: 0, verifyFailed: [], costUsd: 0 })
+    const rows = await readCsv(summary.csvPath)
+    expect(rows.find((r) => r[0] === 'C0002.MP4')?.[1]).toBe('C0002.MP4')
+  })
+
+  it('copy mode skips files already uploaded to the same event', { timeout: 120_000 }, async () => {
+    const journal = await Journal.load(journalFile)
+    await run({ mode: 'copy', journal })
+    const { summary } = await run({ mode: 'copy', journal: await Journal.load(journalFile) })
+    expect(summary.alreadyUploaded).toBe(5)
+    expect(media(await listFiles(eventDir))).toHaveLength(5)
+  })
+
+  it('name mode names the clips but puts them straight into the event folder', { timeout: 120_000 }, async () => {
+    const { summary } = await run({ mode: 'name' })
+    expect(media(await listFiles(eventDir))).toEqual([
+      'C0001_TOP_gol.MP4',
+      'C0003_sance.MP4',
+      '_ostatni/DCIM/100MSDCF/DSC00001.JPG',
+      `_ostatni/${CLIP_DIR}/C0001M01.XML`,
+    ])
+    expect(summary).toMatchObject({ mode: 'name', ai: 'used', status: 'ok', top: 1, markers: 1, unclassified: 0 })
+  })
+
+  it('name mode keeps the original name in the event folder when a clip cannot be described', { timeout: 120_000 }, async () => {
+    const classifier = fakeClassifier({ 'C0003.MP4': { category: '', description: '', confidence: 'low', ok: false, error: 'timeout' } })
+    const { summary } = await run({ mode: 'name', classifier })
+    const files = media(await listFiles(eventDir))
+    expect(files).toContain('C0003.MP4')
+    expect(files).toContain('C0001_TOP_gol.MP4')
+    expect(files.some((f) => f.startsWith('_nezařazeno'))).toBe(false)
+    expect(summary.unclassified).toBe(1)
+  })
+
+  it('reports the default mode as sort', { timeout: 120_000 }, async () => {
+    const { summary } = await run()
+    expect(summary.mode).toBe('sort')
+  })
+
   it('stops in the middle of a clip when aborted and keeps no partial file', { timeout: 120_000 }, async () => {
     const controller = new AbortController()
     const openRead = (p: string): NodeJS.ReadableStream => {

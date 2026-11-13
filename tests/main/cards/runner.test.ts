@@ -7,6 +7,7 @@ import type { RunEvent, RunOptions, RunSummary } from '../../../src/core/cards/p
 import { cardListener, describeCard } from '../../../src/main/cards/cardinfo'
 import { FINAL_OK_MESSAGE, NOT_BACKED_UP, Runner, listEvents, noticeFor, type Notice, type RunnerDeps } from '../../../src/main/cards/runner'
 import { defaultSettings } from '../../../src/main/cards/settings'
+import { NAME_ONLY_TEMPLATE } from '../../../src/core/cards/templates'
 import type { RunEventPayload, Settings } from '../../../src/shared/cards-ipc'
 
 const SUMMARY: RunSummary = {
@@ -23,6 +24,7 @@ const SUMMARY: RunSummary = {
   csvPath: '',
   status: 'ok',
   ai: 'used',
+  mode: 'sort',
 }
 
 let base: string
@@ -59,7 +61,7 @@ const request = (over: Record<string, unknown> = {}): Record<string, unknown> =>
   isNew: true,
   templateId: 'fotbal',
   rosterText: '9 Kačor\n10 Provod',
-  sort: true,
+  mode: 'sort',
   ...over,
 })
 
@@ -107,10 +109,18 @@ describe('Runner.start refusals', () => {
     await expect(fs.stat(path.join(rootDir, 'Sparta - Slavia'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
-  it('refuses a request without the sort flag', async () => {
-    const { sort: _sort, ...rest } = request()
+  it('refuses a request without a valid mode', async () => {
+    const { mode: _mode, ...rest } = request()
     expect((await makeRunner().start(rest)).ok).toBe(false)
-    expect((await makeRunner().start(request({ sort: 'yes' }))).ok).toBe(false)
+    expect((await makeRunner().start(request({ mode: 'yes' }))).ok).toBe(false)
+    expect((await makeRunner().start(request({ sort: true, mode: undefined }))).ok).toBe(false)
+    expect(runs).toHaveLength(0)
+  })
+
+  it('refuses name mode without an API key', async () => {
+    apiKey = null
+    const res = await makeRunner().start(request({ mode: 'name' }))
+    expect(res.ok === false && res.error).toMatch(/klíč/)
     expect(runs).toHaveLength(0)
   })
 
@@ -240,7 +250,7 @@ describe('Runner.start', () => {
     expect(seen).toBe('claude-haiku-5-5')
   })
 
-  it('backs up without sorting (no classifier) when asked to, even without an API key', async () => {
+  it('copy mode needs no API key, no template and no ffprobe', async () => {
     apiKey = null
     let made = 0
     const runner = makeRunner({
@@ -249,12 +259,31 @@ describe('Runner.start', () => {
         return { classify: async () => { throw new Error('unused') } }
       },
     })
-    expect(await runner.start(request({ sort: false }))).toEqual({ ok: true })
+    const toolsBroken = makeRunner({ toolsOk: async () => false })
+    expect(await toolsBroken.start(request({ mode: 'copy', templateId: undefined, isNew: true, eventName: 'Jen kopie' }))).toEqual({ ok: true })
+    await toolsBroken.idle()
+    expect(runs.at(-1)!.mode).toBe('copy')
+    expect(await runner.start(request({ mode: 'copy', templateId: 'neexistuje' }))).toEqual({ ok: true })
     await runner.idle()
-    expect(runs).toHaveLength(1)
-    expect(runs[0]!.classifier).toBeNull()
+    expect(runs).toHaveLength(2)
+    expect(runs[1]!.classifier).toBeNull()
+    expect(runs[1]!.mode).toBe('copy')
     expect(made).toBe(0)
     expect((await fs.stat(path.join(rootDir, 'Sparta - Slavia'))).isDirectory()).toBe(true)
+  })
+
+  it('name mode classifies with the name-only template, whatever template was chosen', async () => {
+    const runner = makeRunner()
+    expect(await runner.start(request({ mode: 'name', templateId: undefined }))).toEqual({ ok: true })
+    await runner.idle()
+    expect(runs[0]!.mode).toBe('name')
+    expect(runs[0]!.classifier).not.toBeNull()
+    expect(runs[0]!.template).toBe(NAME_ONLY_TEMPLATE)
+  })
+
+  it('sort mode still needs an existing template', async () => {
+    const res = await makeRunner().start(request({ templateId: 'neexistuje' }))
+    expect(res.ok === false && res.error).toMatch(/šablona/)
   })
 
   it('forwards waiting_space from the space waiter', async () => {

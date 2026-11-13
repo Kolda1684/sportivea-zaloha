@@ -213,7 +213,7 @@ Neověřeno živě: Google Dokument (export), sdílený disk, dialog při Cmd+Q 
 
 0. Při startu `index.ts` jednou spustí `checkTools`; výsledek čte renderer přes IPC `cards.tools:ok` (při `false` česká chyba, tlačítka neaktivní) a `runner` při `false` odmítne `cards.run:start`.
 1. `watcher` zjistí kartu v `/Volumes` → `queue` → okno „Nová karta“ (`cardinfo`).
-2. Start → IPC `cards.run:start` (`sort: true`, nebo `sort: false` = „Zálohovat bez třídění“ bez API klíče) → `runner` zvaliduje vstup (Zod), jednou založí složku akce (neřekurzivní `mkdir` pod existujícím kořenem) a spustí `pipeline` (při `sort: false` s `classifier: null`).
+2. Start → IPC `cards.run:start` (`mode`: `sort` / `name` / `copy`) → `runner` zvaliduje vstup (Zod; klíč jen pro `sort` a `name`, šablona jen pro `sort`, ffprobe/ffmpeg jen mimo `copy`), jednou založí složku akce (neřekurzivní `mkdir` pod existujícím kořenem) a spustí `pipeline` s `mode` (`name` s `NAME_ONLY_TEMPLATE`, `copy` s `classifier: null`).
 3. `pipeline`: sken → probe + jas → značky/TOP → klasifikace (Claude; bez klasifikátoru vše `_nezařazeno`; po 5 `apiFailure` za sebou se už neptá a zbytek jde do `_nezařazeno`) → `copy` do složky akce (TOP první, pak chronologicky; před každým souborem `stat` zdroje — jiná velikost nebo chybí = `card_removed`) → ověření → CSV → `RunSummary` (`ai`: `used` / `unavailable` / `off`).
 4. Události (`RunEvent`) jdou přes IPC do rendereru (Progress/Done) a do notifikací.
 
@@ -246,7 +246,7 @@ Neověřeno živě: Google Dokument (export), sdílený disk, dialog při Cmd+Q 
 - **Integrační testy** jen s `TRIDENI_INTEGRATION=1` (skutečná karta Istanbul, ~10 min).
 - **Fallback bez hard linků**: svazek Drivu nemusí `link` podporovat; `copy.ts` si pak jméno zabere exkluzivním `open(final,'wx')` placeholderem a pak `rename` z vlastního temp; placeholder se maže jen když je to vlastní prázdný soubor (stejný inode, velikost 0).
 - Výstup balíčku je `dist/` (`out/` je build electron-vite).
-- **Zálohovat bez třídění**: bez API klíče běží pipeline s `classifier: null` (záloha má přednost před tříděním; značky a TOP se pořád poznají, poznámka v CSV „zálohováno bez třídění“).
+- **Co s kartou (2026-11-13)**: `RunOptions.mode` — `sort` (dřívější chování), `name` (klasifikátor jen pro popis s `NAME_ONLY_TEMPLATE`, klipy do `EVENT_ROOT` = přímo do složky akce; nepopsaný klip pod původním názvem tamtéž a počítá se do `unclassified`), `copy` (žádný probe, značky, TOP ani klasifikace; všechny soubory podle `relPath` s původními názvy do `EVENT_ROOT`, bez značky kamery — obsazené jméno ` (2)`). `RunSummary.mode`. Dřívější „Zálohovat bez třídění“ (bez klíče, vše do `_nezařazeno`) v UI nahradila volba `copy`; pipeline cestu `classifier: null` v režimu `sort` pořád umí.
 - **Jistič AI**: 5 chyb API za sebou (ne odmítnutí ani nízká jistota) → klasifikátor se v běhu už nevolá, zbytek do `_nezařazeno` („AI nedostupná“). Při paralelní klasifikaci (4) může doběhnout nejvýš 3 rozběhnutá volání navíc.
 - **Sony proxy a náhledy** (`M4ROOT/SUB`, `M4ROOT/THMBNL`) jsou ostatní soubory (`_ostatni`), aby se neanalyzovaly ani nepletly do TOP.
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { RunSummary } from '../../../core/cards/pipeline'
-import { UNCLASSIFIED } from '../../../core/cards/templates'
+import { EVENT_ROOT, UNCLASSIFIED } from '../../../core/cards/templates'
 import { api } from '../api'
 import { baseName, classifyFailureMessage, formatCzk, plural } from '../format'
 import { countClassifyFailures, type RunItem, type RunState } from '../runState'
@@ -8,6 +8,8 @@ import {
   ABORTED_MESSAGE,
   AI_UNAVAILABLE_MESSAGE,
   CARD_REMOVED_MESSAGE,
+  COPY_DONE_MESSAGE,
+  EVENT_ROOT_LABEL,
   FINAL_OK_MESSAGE,
   NO_AI_DONE_MESSAGE,
   NOT_BACKED_UP_HEADING,
@@ -84,6 +86,8 @@ export function Done({ run, summary, czkPerUsd, canRerun, onRerun, onClose }: Do
   const ok = summary.status === 'ok'
   // after a backup without sorting, no clip "failed": none was meant to be sorted
   const failedClassify = summary.ai === 'off' ? 0 : countClassifyFailures(run)
+  const plainCopy = summary.mode === 'copy'
+  const folderLabel = (folder: string): string => (folder === EVENT_ROOT ? EVENT_ROOT_LABEL : folder)
 
   return (
     <section className="stack">
@@ -101,10 +105,16 @@ export function Done({ run, summary, czkPerUsd, canRerun, onRerun, onClose }: Do
         </div>
       )}
 
-      {summary.ai === 'off' && (
-        <p className="callout warn" role="status">
-          {NO_AI_DONE_MESSAGE}
+      {plainCopy ? (
+        <p className="callout" role="status">
+          {COPY_DONE_MESSAGE}
         </p>
+      ) : (
+        summary.ai === 'off' && (
+          <p className="callout warn" role="status">
+            {NO_AI_DONE_MESSAGE}
+          </p>
+        )
       )}
 
       {summary.ai === 'unavailable' && (
@@ -140,26 +150,30 @@ export function Done({ run, summary, czkPerUsd, canRerun, onRerun, onClose }: Do
             <tbody>
               {folders.map(([folder, n]) => (
                 <tr key={folder}>
-                  <th scope="row">{folder}</th>
+                  <th scope="row">{folderLabel(folder)}</th>
                   <td>
-                    {n} {plural(n, 'klip', 'klipy', 'klipů')}
+                    {n} {plainCopy ? plural(n, 'soubor', 'soubory', 'souborů') : plural(n, 'klip', 'klipy', 'klipů')}
                   </td>
                 </tr>
               ))}
               <tr className="sum">
-                <th scope="row">Celkem klipů</th>
+                <th scope="row">{plainCopy ? 'Celkem souborů' : 'Celkem klipů'}</th>
                 <td>{copiedClips}</td>
               </tr>
             </tbody>
           </table>
         )}
         <ul className="plain facts">
-          <li>
-            <span className="strong">TOP záběry:</span> {summary.top}
-          </li>
-          <li>
-            <span className="strong">Černé značky</span> (nekopírují se): {summary.markers}
-          </li>
+          {!plainCopy && (
+            <li>
+              <span className="strong">TOP záběry:</span> {summary.top}
+            </li>
+          )}
+          {!plainCopy && (
+            <li>
+              <span className="strong">Černé značky</span> (nekopírují se): {summary.markers}
+            </li>
+          )}
           {summary.orphanMarkers > 0 && (
             <li>
               <span className="strong">Osiřelé značky</span> (bez TOP záběru, v CSV „bez TOP“): {summary.orphanMarkers}
@@ -173,34 +187,38 @@ export function Done({ run, summary, czkPerUsd, canRerun, onRerun, onClose }: Do
           <li>
             <span className="strong">Už nahráno dřív:</span> {summary.alreadyUploaded}
           </li>
-          <li>
-            <span className="strong">Cena za třídění:</span> {formatCzk(summary.costUsd * czkPerUsd)}
-          </li>
+          {!plainCopy && (
+            <li>
+              <span className="strong">Cena za třídění:</span> {formatCzk(summary.costUsd * czkPerUsd)}
+            </li>
+          )}
         </ul>
       </div>
 
-      <div className="card">
-        <h2>Zkontroluj ručně</h2>
-        {summary.ai === 'off' ? (
-          <p className="muted">Záloha proběhla bez třídění — klipy ve složce _nezařazeno roztřiď ručně.</p>
-        ) : manual.length === 0 ? (
-          <p className="muted">Nic takového — všechno bylo zařazeno s jistotou.</p>
-        ) : (
-          <ul className="plain manual">
-            {manual.map((m) => (
-              <li key={m.key}>
-                <div>
-                  <span className="strong">{m.name}</span>
-                  {m.folder !== '' && <span className="muted"> · {m.folder}</span>}
-                </div>
-                <div className="muted small">
-                  {m.reason} (na kartě: {m.original})
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {!plainCopy && (
+        <div className="card">
+          <h2>Zkontroluj ručně</h2>
+          {summary.ai === 'off' ? (
+            <p className="muted">Záloha proběhla bez třídění — klipy ve složce _nezařazeno roztřiď ručně.</p>
+          ) : manual.length === 0 ? (
+            <p className="muted">Nic takového — všechno bylo zařazeno s jistotou.</p>
+          ) : (
+            <ul className="plain manual">
+              {manual.map((m) => (
+                <li key={m.key}>
+                  <div>
+                    <span className="strong">{m.name}</span>
+                    {m.folder !== '' && <span className="muted"> · {m.folder}</span>}
+                  </div>
+                  <div className="muted small">
+                    {m.reason} (na kartě: {m.original})
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {summary.csvPath !== '' && <p className="muted small">Přehled přejmenování je v souboru {baseName(summary.csvPath)} ve složce akce.</p>}
 

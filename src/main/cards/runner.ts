@@ -4,7 +4,8 @@ import { z } from 'zod'
 import { ClaudeClassifier, type Classifier } from '../../core/cards/classifier'
 import { makeSpaceWaiter } from '../../core/cards/diskspace'
 import { Journal } from '../../core/cards/journal'
-import { runCard, type RunEvent, type RunSummary } from '../../core/cards/pipeline'
+import { runCard, type CardMode, type RunEvent, type RunSummary } from '../../core/cards/pipeline'
+import { NAME_ONLY_TEMPLATE } from '../../core/cards/templates'
 import { parseRoster } from '../../core/cards/roster'
 import type { Result, RunEventPayload, RunStartRequest, Settings } from '../../shared/cards-ipc'
 import { JobQueue } from './queue'
@@ -18,9 +19,9 @@ const requestSchema = z.object({
   cardRoot: z.string().min(1).max(4096),
   eventName: z.string().min(1).max(200),
   isNew: z.boolean(),
-  templateId: z.string().min(1).max(100),
+  templateId: z.string().min(1).max(100).optional(),
   rosterText: z.string().max(20_000),
-  sort: z.boolean(),
+  mode: z.enum(['sort', 'name', 'copy']),
 })
 
 export type Notice = { title: string; body: string }
@@ -127,7 +128,8 @@ export class Runner {
     const parsed = requestSchema.safeParse(raw)
     if (!parsed.success) return { ok: false, error: 'Neplatný požadavek na zálohu.' }
     const req: RunStartRequest = parsed.data
-    if (this.deps.toolsOk && !(await this.deps.toolsOk())) return { ok: false, error: TOOLS_MISSING }
+    // 'copy' analyses nothing, so it works even without ffprobe/ffmpeg
+    if (req.mode !== 'copy' && this.deps.toolsOk && !(await this.deps.toolsOk())) return { ok: false, error: TOOLS_MISSING }
     const eventName = req.eventName.trim()
     const cardRoot = path.resolve(req.cardRoot)
 
@@ -137,14 +139,15 @@ export class Runner {
     if (!path.isAbsolute(rootDir) || !(await isDirectory(rootDir))) {
       return { ok: false, error: 'Složka pro akce není dostupná. Je Google Drive připojený?' }
     }
-    // Without sorting no key is needed: everything is backed up to _nezařazeno.
+    // 'copy' needs no key: nothing is sent to the AI.
     let apiKey: string | null = null
-    if (req.sort) {
+    if (req.mode !== 'copy') {
       apiKey = await this.deps.getApiKey()
       if (apiKey === null || apiKey === '') return { ok: false, error: 'Chybí klíč ke Claude. Zadej ho v nastavení.' }
     }
 
-    const template = settings.templates.find((t) => t.id === req.templateId)
+    // 'name' describes clips without categories; 'copy' does not use a template at all
+    const template = req.mode === 'sort' ? settings.templates.find((t) => t.id === req.templateId) : NAME_ONLY_TEMPLATE
     if (!template) return { ok: false, error: 'Vybraná šablona kategorií neexistuje.' }
 
     if (!this.knownCards.has(cardRoot)) return { ok: false, error: 'Tuhle kartu aplikace nezná. Zasuň ji znovu nebo vyber složku ručně.' }
@@ -202,7 +205,7 @@ export class Runner {
     const position = this.queue.pending
     this.deps.send({ cardRoot, event: { type: 'queued', position } })
     const signal = this.controller.signal
-    this.queue.enqueue(() => this.job(cardRoot, eventDir, template, req.rosterText, settings, apiKey, signal))
+    this.queue.enqueue(() => this.job(cardRoot, eventDir, template, req.rosterText, settings, apiKey, signal, req.mode))
     return { ok: true }
   }
 
@@ -214,6 +217,7 @@ export class Runner {
     settings: Settings,
     apiKey: string | null,
     signal: AbortSignal,
+    mode: CardMode,
   ): Promise<void> {
     const send = (event: RunEventPayload['event']): void => {
       try {
@@ -233,6 +237,7 @@ export class Runner {
           cardRoot,
           eventDir,
           template,
+          mode,
           roster: parseRoster(rosterText),
           classifier,
           journal,

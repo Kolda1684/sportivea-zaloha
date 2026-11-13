@@ -1,6 +1,6 @@
 {
   "name": "sportivea-zaloha",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Sportivea Záloha — downloads Drive folders to a disk and sorts camera cards into a Google Drive folder",
   "main": "./out/main/index.js",

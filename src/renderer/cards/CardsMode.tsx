@@ -8,7 +8,7 @@ import { Progress } from './screens/Progress'
 import { addRecent, loadRecent, type RecentRun } from './recent'
 import { isActive, newRun, reduceRun, type RunState } from './runState'
 import { cardsStatusText } from '../shell-state'
-import { TOOLS_MISSING_MESSAGE } from './strings'
+import { CARD_MODES, TOOLS_MISSING_MESSAGE } from './strings'
 
 type View = { name: 'idle' } | { name: 'newcard' } | { name: 'run'; id: string }
 export type Pending = { card: CardDetected; preset?: { eventName: string; isNew: boolean } }
@@ -121,14 +121,15 @@ export function CardsMode({ visible, onStatus, onCardArrived, onOpenSettings }: 
   const startRun = useCallback(
     async (card: CardDetected, form: StartForm): Promise<string | null> => {
       if (settings === null || settings.rootDir === null) return 'Nejdřív vyber složku na Disku v nastavení.'
-      const template = settings.templates.find((t) => t.id === form.templateId)
-      if (!template) return 'Vybraná šablona neexistuje.'
+      const template = form.mode === 'sort' ? settings.templates.find((t) => t.id === form.templateId) : undefined
+      if (form.mode === 'sort' && !template) return 'Vybraná šablona neexistuje.'
+      const templateName = template?.name ?? CARD_MODES.find((m) => m.mode === form.mode)?.label ?? ''
       const eventName = form.eventName.trim()
       const run = newRun({
         cardRoot: card.root,
         eventName,
         eventDir: joinPath(settings.rootDir, eventName),
-        templateName: template.name,
+        templateName,
         startedAt: Date.now(),
       })
       dispatch({ kind: 'add', run })
@@ -136,9 +137,9 @@ export function CardsMode({ visible, onStatus, onCardArrived, onOpenSettings }: 
         cardRoot: card.root,
         eventName,
         isNew: form.isNew,
-        templateId: form.templateId,
+        ...(form.mode === 'sort' ? { templateId: form.templateId } : {}),
         rosterText: form.rosterText,
-        sort: form.sort,
+        mode: form.mode,
       }
       let result: Awaited<ReturnType<CardsApi['startRun']>>
       try {
@@ -154,9 +155,11 @@ export function CardsMode({ visible, onStatus, onCardArrived, onOpenSettings }: 
       const rest = pendingRef.current.filter((p) => p.card.root !== card.root)
       setPending(rest)
       setView(rest.length > 0 ? { name: 'newcard' } : { name: 'run', id: run.id })
-      void api().setSettings({ lastTemplateId: form.templateId }).then((r) => {
-        if (r.ok) setSettings(r.settings)
-      })
+      if (form.mode === 'sort') {
+        void api().setSettings({ lastTemplateId: form.templateId }).then((r) => {
+          if (r.ok) setSettings(r.settings)
+        })
+      }
       return null
     },
     [settings],

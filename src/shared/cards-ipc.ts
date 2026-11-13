@@ -1,4 +1,6 @@
-import type { RunEvent } from '../core/cards/pipeline'
+import type { CardMode, RunEvent } from '../core/cards/pipeline'
+
+export type { CardMode } from '../core/cards/pipeline'
 import type { Template } from '../core/cards/templates'
 
 export type Model = 'claude-sonnet-5-5' | 'claude-opus-5-5' | 'claude-haiku-5-5'
@@ -48,10 +50,11 @@ export type RunStartRequest = {
   eventName: string
   /** true: create the event folder (refuse if it exists); false: add to an existing event folder. */
   isNew: boolean
-  templateId: string
+  /** Category template; only used (and required) in 'sort' mode. */
+  templateId?: string
   rosterText: string
-  /** true: sort with the AI (needs the API key); false: back up without sorting, everything to `_nezařazeno`. */
-  sort: boolean
+  /** 'sort' and 'name' need the API key; 'copy' needs neither the key nor the template. */
+  mode: CardMode
 }
 
 /** `error` is a Czech sentence meant to be shown to the user. */

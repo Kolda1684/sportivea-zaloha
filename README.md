@@ -120,7 +120,7 @@ Přihlašovací token (refresh token) je uložený šifrovaně v Klíčence macO
 
 - **Google Drive pro počítač** je nainstalovaný, přihlášený účtem s právem zápisu na sdílený disk a běží (ikona v liště).
 - Drive je v režimu **Streamovat soubory** (Nastavení Drivu → Google Drive). Soubory se pak po uploadu uvolní z lokálního disku a Mac se nezaplní.
-- Anthropic API klíč (zadá se jednou, viz níže). Bez klíče jde kartu aspoň **zálohovat bez třídění**.
+- Anthropic API klíč (zadá se jednou, viz níže). Bez klíče jde kartu aspoň **jen nahrát** (beze změny).
 
 ## První nastavení
 
@@ -137,7 +137,11 @@ Otevři **Nastavení** v aplikaci:
 2. Zkontroluj **Kam nahrát**: nahoře je vidět cílová složka na Disku (naposledy použitá), tlačítkem **Změnit složku** vybereš jinou.
 3. Vyber **složku akce** (existující, nebo založ novou, např. `2026-10-20 Fenerbahçe – Slavia`) a **šablonu**. Volitelně vlož soupisku (číslo a jméno hráče).
 4. Zmáčkni **Start**. Průběh je vidět v okně, kameraman může odejít.
-   Bez uloženého API klíče je místo Startu tlačítko **Zálohovat bez třídění**: všechny klipy se zálohují do `_nezařazeno` pod původním názvem (TOP záběr jako `<název>_TOP`), černé značky a TOP záběry se pořád poznají, ověření a CSV fungují stejně.
+   **Co s kartou** (nahoře na obrazovce):
+   - **Roztřídit a pojmenovat** (výchozí): klipy do složek podle šablony, názvy s popisem.
+   - **Jen pojmenovat**: Claude klipy pojmenuje, ale všechny jdou rovnou do složky akce, bez podsložek kategorií. Šablona se nevybírá, soupiska funguje. Černé značky se nenahrávají, TOP se pozná, ostatní soubory jdou do `_ostatni`. Klip, který se nepodaří popsat, zůstane pod původním názvem.
+   - **Jen nahrát**: bez Clauda a bez klíče. Všechny soubory z karty (i černé značky) s původními názvy rovnou do složky akce, bez podsložek. Stejný název s jiným obsahem dostane ` (2)`.
+   Bez uloženého API klíče jde jen **Jen nahrát**. Ověření, „už nahráno dřív“ a CSV fungují ve všech třech stejně.
 5. **Počkej na zelené potvrzení**: „Zapsáno a ověřeno. Kartu můžeš vytáhnout. Drive dokončuje upload, kartu formátuj až po jeho dokončení (ikona Drive v liště).“
 6. **Kartu neformátuj, dokud Drive nedokončí upload.** Potvrzení znamená, že soubory jsou správně zapsané ve složce Drivu, ne že už jsou v cloudu. Upload dělá Drive na pozadí. Karta se formátuje vždy až ve fotoaparátu.
 

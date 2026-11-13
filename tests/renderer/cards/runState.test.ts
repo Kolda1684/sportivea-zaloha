@@ -22,6 +22,7 @@ const ok = (category: string, description = 'gol', confidence: ClassifyResult['c
 })
 
 const summary = (patch: Partial<RunSummary> = {}): RunSummary => ({
+  mode: 'sort',
   perFolder: {},
   top: 0,
   markers: 0,

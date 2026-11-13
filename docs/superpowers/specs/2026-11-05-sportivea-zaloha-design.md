@@ -108,3 +108,15 @@ Rozdělení kódu do složek, sloučení IPC kanálů a typů, jak se sloučí d
 - Janovo nastavení třídění se na firemní Mac přenese ručním zkopírováním `settings.json` podle návodu, ne funkcí v aplikaci.
 - Spouštění po přihlášení se nastaví ručně v Nastavení systému podle návodu.
 - Souběh se starými aplikacemi se neblokuje, jen se v návodu doporučí je nespouštět.
+
+## Doplněk 2026-11-13: Co s kartou (schválil Jan)
+
+Jan: „ne vždycky nahráváme věci… ať to nerozřezuješ a nepojmenováváš. Prostě jenom nahraješ, kam ti řeknu do složky“ a chce „obě volby“.
+
+Na obrazovce Nová karta je volba **Co s kartou**:
+
+1. **Roztřídit a pojmenovat** (výchozí): dnešní chování beze změny.
+2. **Jen pojmenovat**: Claude klipům dá název s popisem (`<základ>[_TOP][_popis].<přípona>`, soupiska funguje), ale všechny klipy jdou **rovnou do složky akce**, bez podsložek kategorií. Šablona se nevybírá. Černé značky a TOP jako dnes (značky se nenahrávají). Ostatní soubory do `_ostatni`. Klip, který se nepodařilo popsat, jde do složky akce pod původním názvem (TOP jako `<základ>_TOP`). Potřebuje klíč ke Claude.
+3. **Jen nahrát**: bez Clauda, bez klíče, bez rozboru klipů. **Všechny** soubory z karty (i černé značky, proxy, XML) se zkopírují s původními názvy **rovnou do složky akce, bez podsložek** (Jan: „bez podsložek rovnou do akce“). Stejné jméno s jiným obsahem dostane ` (2)`, ` (3)`. Ignorované systémové soubory macOS se nekopírují (jako dnes).
+
+Pro všechny tři: cíl jako dnes (Kam nahrát + existující nebo nová akce), ověření, add-only, „už nahráno dřív“ podle deníku a CSV beze změny. Dnešní „Zálohovat bez třídění“ (bez klíče) nahrazuje volba **Jen nahrát**: bez klíče jsou volby 1 a 2 vypnuté s vysvětlením.

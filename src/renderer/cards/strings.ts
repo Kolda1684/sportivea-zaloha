@@ -9,5 +9,14 @@ export const WAITING_SPACE_MESSAGE = 'Čekám, až Google Drive uvolní místo n
 export const TOOLS_MISSING_MESSAGE = 'Chybí nástroj ffprobe/ffmpeg — aplikace je poškozená, kontaktuj Jana.'
 export const NOT_BACKED_UP_HEADING = 'Pozor — karta NENÍ celá zálohovaná'
 export const AI_UNAVAILABLE_MESSAGE = 'AI nedostupná — zbytek zálohován bez třídění.'
-export const BACKUP_ONLY_HINT = 'Bez API klíče: vše se zálohuje do _nezařazeno, černé značky a TOP záběry se pořád poznají.'
+export const KEY_MISSING_HINT = 'Bez klíče ke Claude nejde třídit ani pojmenovávat. Kartu můžeš jen nahrát beze změny.'
+export const COPY_DONE_MESSAGE = 'Nahráno beze změny: všechny soubory jsou s původními názvy přímo ve složce akce.'
+/** Label of the event folder itself in the Done table ('name' and 'copy' modes put files there). */
+export const EVENT_ROOT_LABEL = 'přímo ve složce akce'
+/** The three things that can be done with a card, in the order shown. */
+export const CARD_MODES = [
+  { mode: 'sort', label: 'Roztřídit a pojmenovat', hint: 'Claude klipy roztřídí do složek podle šablony a pojmenuje je.' },
+  { mode: 'name', label: 'Jen pojmenovat', hint: 'Claude klipy pojmenuje, ale všechny jdou rovnou do složky akce, bez třídění.' },
+  { mode: 'copy', label: 'Jen nahrát', hint: 'Všechny soubory z karty s původními názvy rovnou do složky akce. Bez Clauda, nic se nepřejmenuje.' },
+] as const
 export const NO_AI_DONE_MESSAGE = 'Zálohováno bez třídění: všechny klipy jsou ve složce _nezařazeno, roztřiď je ručně.'

@@ -14,8 +14,15 @@ import { buildName, parseOriginalName, slugify, withConflictSuffix } from './nam
 import { costUsd } from './pricing'
 import { probeClip, type ClipMeta } from './probe'
 import type { RosterEntry } from './roster'
-import { OTHER_FILES, UNCLASSIFIED, type Template } from './templates'
+import { EVENT_ROOT, OTHER_FILES, UNCLASSIFIED, type Template } from './templates'
 import type { CardFile } from './types'
+
+/**
+ * What happens to a card: 'sort' = categories + names (default); 'name' = names, every clip straight into the event
+ * folder; 'copy' = no analysis at all, every file with its original name straight into the event folder.
+ */
+export type CardMode = 'sort' | 'name' | 'copy'
+export { EVENT_ROOT } from './templates'
 
 export type RunOptions = {
   cardRoot: string
@@ -39,6 +46,8 @@ export type RunOptions = {
   hashFile?: CopyOptions['hashFile']
   /** Hard-link primitive used by the copy step (default `fs.link`); injectable for tests. */
   linkFn?: CopyOptions['linkFn']
+  /** Default 'sort'. In 'copy' mode `template`, `roster` and `classifier` are not used. */
+  mode?: CardMode
 }
 
 export type RunEvent =
@@ -62,6 +71,7 @@ export type RunSummary = {
   costUsd: number
   csvPath: string
   status: 'ok' | 'card_removed' | 'verify_failed' | 'aborted'
+  mode: CardMode
   /**
    * 'used': the classifier was asked for every clip; 'unavailable': it was given up after repeated API
    * failures and the remaining clips were backed up unsorted; 'off': backup without sorting (no classifier).
@@ -203,6 +213,9 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
   const volumeTag = tagFrom(slugify(volumeName)) || 'CARD'
   const waitForSpace = opts.waitForSpace ?? makeSpaceWaiter(eventDir, { onWaiting: (needed, free) => emit({ type: 'waiting_space', needed, free }) })
   const hashFile = opts.hashFile ?? sha256File
+  const mode: CardMode = opts.mode ?? 'sort'
+  // 'copy' mode looks at nothing: no probing, no markers/TOP, no classification
+  const analyse = mode !== 'copy'
 
   let cardRemoved = false
   let destinationGone = false
@@ -264,7 +277,7 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
   }
 
   await pool(
-    videos,
+    analyse ? videos : [],
     ANALYSIS_CONCURRENCY,
     async (file) => {
       const clip = clips.get(file.relPath)
@@ -290,7 +303,7 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
   // ---- markers and TOP
   const markerSet = new Set<string>()
   const topSet = new Set<string>()
-  if (!stopped()) {
+  if (!stopped() && analyse) {
     const cameraKeyOf = (c: Clip): string => c.meta?.cameraModel ?? volumeName
     const inputs: MarkerInput[] = []
     for (const clip of clips.values()) {
@@ -363,7 +376,7 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
   // Circuit breaker: when the API keeps failing (offline, outage), stop asking it and back the rest up unsorted.
   let consecutiveApiFailures = 0
   let aiUnavailable = false
-  if (!stopped()) {
+  if (!stopped() && analyse) {
     const toClassify = videos.filter((f) => !markerSet.has(f.relPath) && !confirmed.has(f.relPath))
     await pool(
       toClassify,
@@ -435,7 +448,9 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
     return planned
   }
   const nonMarkerVideos = videos.filter((f) => !markerSet.has(f.relPath)).map(planVideo)
-  const ordered: Planned[] = [
+  const ordered: Planned[] = !analyse
+    ? [...files].sort(byRelPath).map((file): Planned => ({ file, top: false }))
+    : [
     ...nonMarkerVideos.filter((p) => p.top).sort(compareByDate),
     ...nonMarkerVideos.filter((p) => !p.top).sort(compareByDate),
     ...files
@@ -453,14 +468,14 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
     }
   }
 
-  const place = (p: Planned, folder: string, newName: string, notes: string[]): void => {
+  const place = (p: Planned, folder: string, newName: string, notes: string[], unsorted = folder === UNCLASSIFIED): void => {
     setRow(p.file, newName, folder, notes)
     placed.add(p.file.relPath)
-    if (p.file.kind === 'other') {
+    if (p.file.kind === 'other' && analyse) {
       others++
     } else {
       perFolder[folder] = (perFolder[folder] ?? 0) + 1
-      if (folder === UNCLASSIFIED) unclassified++
+      if (unsorted) unclassified++
     }
   }
 
@@ -510,7 +525,13 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
     let folder: string
     let desiredName: string
     let base: string
-    if (file.kind === 'other') {
+    /** 'name' mode: a clip that could not be described counts like an unsorted clip. */
+    let unnamed = false
+    if (!analyse) {
+      folder = EVENT_ROOT
+      desiredName = path.posix.basename(file.relPath)
+      base = parseOriginalName(desiredName).base
+    } else if (file.kind === 'other') {
       const dir = path.posix.dirname(file.relPath)
       folder = dir === '.' ? OTHER_FILES : `${OTHER_FILES}/${dir}`
       desiredName = path.posix.basename(file.relPath)
@@ -520,11 +541,14 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
       const result = p.result ?? failure('klip nebyl klasifikován')
       const fileName = clip?.fileName ?? path.posix.basename(file.relPath)
       base = clip?.base ?? parseOriginalName(fileName).base
-      folder = UNCLASSIFIED
+      folder = mode === 'name' ? EVENT_ROOT : UNCLASSIFIED
       desiredName = fileName
+      unnamed = mode === 'name' && !result.ok
       if (result.ok) {
         const candidate = buildName({ base, description: result.description, top: p.top, ext: clip?.ext ?? '' })
-        if (isPlainName(result.category)) folder = result.category
+        if (mode === 'name') {
+          // no category folders: the classifier only supplies the description
+        } else if (isPlainName(result.category)) folder = result.category
         else notes.push('neplatná kategorie od klasifikátoru')
         if (isPlainName(candidate)) desiredName = candidate
         else notes.push('neplatný název od klasifikátoru, ponechán původní název')
@@ -543,11 +567,13 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
     }
 
     const cameraModel = p.clip?.meta?.cameraModel
-    const cameraTag = (cameraModel ? tagFrom(cameraModel) : '') || volumeTag
-    const destDir = path.join(eventDir, ...folder.split('/'))
+    // 'copy' keeps original names: a taken name gets ` (2)`, never a camera tag
+    const cameraTag = analyse ? (cameraModel ? tagFrom(cameraModel) : '') || volumeTag : undefined
+    const segments = folder === EVENT_ROOT ? [] : folder.split('/')
+    const destDir = path.join(eventDir, ...segments)
 
     try {
-      await mkdirBelow(eventDir, folder.split('/'))
+      await mkdirBelow(eventDir, segments)
     } catch (e) {
       verifyFailed.push(`${file.relPath} (${errMessage(e)})`)
       setRow(file, '', NOT_COPIED, [...notes, `složku nešlo vytvořit: ${errMessage(e)}`])
@@ -628,7 +654,7 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
         at: new Date().toISOString(),
       })),
     )
-    place(p, folder, path.basename(outcome.destPath), notes)
+    place(p, folder, path.basename(outcome.destPath), notes, folder === UNCLASSIFIED || unnamed)
   }
 
   // ---- every file on the card is accounted for
@@ -679,7 +705,8 @@ export async function runCard(opts: RunOptions, onEvent: (e: RunEvent) => void, 
     others,
     costUsd: cost,
     csvPath,
-    ai: classifier === null ? 'off' : aiUnavailable ? 'unavailable' : 'used',
+    ai: classifier === null || !analyse ? 'off' : aiUnavailable ? 'unavailable' : 'used',
+    mode,
     status: cardRemoved
       ? 'card_removed'
       : aborted && unplaced.length > 0

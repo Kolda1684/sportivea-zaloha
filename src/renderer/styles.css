@@ -297,6 +297,26 @@ label {
   gap: 0.5rem;
 }
 
+.choice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.6rem;
+  row-gap: 0.1rem;
+  align-items: center;
+  padding: 0.35rem 0;
+  cursor: pointer;
+}
+
+.choice-hint {
+  grid-column: 2;
+  font-weight: 400;
+}
+
+.choice:has(input:disabled) {
+  cursor: default;
+  opacity: 0.55;
+}
+
 input[type='radio'] {
   width: 1.1rem;
   height: 1.1rem;

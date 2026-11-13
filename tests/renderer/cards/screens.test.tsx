@@ -6,9 +6,10 @@ import { DEFAULT_TEMPLATES } from '../../../src/core/cards/templates'
 import type { CardDetected, Settings } from '../../../src/shared/cards-ipc'
 import { Done } from '../../../src/renderer/cards/screens/Done'
 import { NewCard } from '../../../src/renderer/cards/screens/NewCard'
-import { AI_UNAVAILABLE_MESSAGE, BACKUP_ONLY_HINT, NO_AI_DONE_MESSAGE, TOOLS_MISSING_MESSAGE } from '../../../src/renderer/cards/strings'
+import { AI_UNAVAILABLE_MESSAGE, COPY_DONE_MESSAGE, KEY_MISSING_HINT, NO_AI_DONE_MESSAGE, TOOLS_MISSING_MESSAGE } from '../../../src/renderer/cards/strings'
 
 const summary = (patch: Partial<RunSummary> = {}): RunSummary => ({
+  mode: 'sort',
   perFolder: { Zápas: 2 },
   top: 1,
   markers: 1,
@@ -83,13 +84,38 @@ function renderNewCard(hasKey: boolean, toolsOk = true, rootDir: string | null =
   )
 }
 
+/** The radio input of one card mode (React does not keep attribute order, so look at the whole tag). */
+function modeInput(html: string, mode: string): string {
+  const tag = html.match(new RegExp(`<input type="radio"[^>]*value="${mode}"[^>]*/>`))?.[0]
+  if (tag === undefined) throw new Error(`no radio for ${mode}`)
+  return tag
+}
+
 describe('NewCard', () => {
-  it('offers "Zálohovat bez třídění" with a hint when there is no API key', () => {
+  it('offers three things to do with a card and starts with sorting when a key is saved', () => {
+    const html = renderNewCard(true)
+    expect(html).toContain('Co s kartou')
+    expect(html).toContain(`${modeInput(html, 'sort')}Roztřídit a pojmenovat`)
+    expect(html).toContain(`${modeInput(html, 'name')}Jen pojmenovat`)
+    expect(html).toContain(`${modeInput(html, 'copy')}Jen nahrát`)
+    expect(modeInput(html, 'sort')).toContain('checked=""')
+    expect(modeInput(html, 'name')).not.toContain('disabled')
+    expect(html).toContain('Šablona kategorií')
+    expect(html).toContain('Soupiska (nepovinná)')
+  })
+
+  it('without an API key only plain upload is possible', () => {
     const html = renderNewCard(false)
-    expect(html).toContain('Zálohovat bez třídění')
-    expect(BACKUP_ONLY_HINT).toBe('Bez API klíče: vše se zálohuje do _nezařazeno, černé značky a TOP záběry se pořád poznají.')
-    expect(html).toContain(BACKUP_ONLY_HINT)
-    expect(html).toMatch(/<button type="button" class="primary big"[^>]*>Zálohovat bez třídění<\/button>/)
+    expect(KEY_MISSING_HINT).toBe('Bez klíče ke Claude nejde třídit ani pojmenovávat. Kartu můžeš jen nahrát beze změny.')
+    expect(html).toContain(KEY_MISSING_HINT)
+    expect(modeInput(html, 'sort')).toContain('disabled=""')
+    expect(modeInput(html, 'name')).toContain('disabled=""')
+    expect(modeInput(html, 'copy')).toContain('checked=""')
+    expect(modeInput(html, 'copy')).not.toContain('disabled')
+    expect(html).not.toContain('Šablona kategorií')
+    expect(html).not.toContain('Soupiska (nepovinná)')
+    expect(html).not.toContain('Zálohovat bez třídění')
+    expect(html).toMatch(/<button type="submit" class="primary big">Start<\/button>/)
   })
 
   it('refuses to start when ffprobe/ffmpeg are missing', () => {
@@ -97,7 +123,8 @@ describe('NewCard', () => {
     const withKey = renderNewCard(true, false)
     expect(withKey).toContain(TOOLS_MISSING_MESSAGE)
     expect(withKey).toMatch(/<button type="submit" class="primary big" disabled="">Start<\/button>/)
-    expect(renderNewCard(false, false)).toMatch(/<button type="button" class="primary big" disabled="">Zálohovat bez třídění<\/button>/)
+    // plain upload analyses nothing, so it still works without ffprobe/ffmpeg
+    expect(renderNewCard(false, false)).toMatch(/<button type="submit" class="primary big">Start<\/button>/)
     expect(renderNewCard(true, true)).not.toContain(TOOLS_MISSING_MESSAGE)
   })
 
@@ -120,6 +147,25 @@ describe('NewCard', () => {
     const html = renderNewCard(true)
     expect(html).not.toContain('Zálohovat bez třídění')
     expect(html).toMatch(/<button type="submit" class="primary big">Start<\/button>/)
+  })
+})
+
+describe('Done after plain upload', () => {
+  it('says the files were uploaded unchanged into the event folder', () => {
+    const html = renderDone(summary({ mode: 'copy', ai: 'off', perFolder: { '': 6 } }))
+    expect(COPY_DONE_MESSAGE).toBe('Nahráno beze změny: všechny soubory jsou s původními názvy přímo ve složce akce.')
+    expect(html).toContain(COPY_DONE_MESSAGE)
+    expect(html).toContain('přímo ve složce akce')
+    expect(html).not.toContain(NO_AI_DONE_MESSAGE)
+    expect(html).not.toContain('_nezařazeno')
+    expect(html).not.toContain('Cena za třídění')
+  })
+})
+
+describe('Done after naming only', () => {
+  it('lists the clips as placed straight into the event folder', () => {
+    const html = renderDone(summary({ mode: 'name', perFolder: { '': 3 } }))
+    expect(html).toContain('přímo ve složce akce')
   })
 })
 
