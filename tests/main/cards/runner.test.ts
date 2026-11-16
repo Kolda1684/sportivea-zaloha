@@ -290,7 +290,8 @@ describe('Runner.start', () => {
     runImpl = async (opts, onEvent) => {
       // ask for more bytes than any disk has: the waiter must announce waiting once
       const waiting = opts.waitForSpace!(Number.MAX_SAFE_INTEGER)
-      await new Promise((r) => setTimeout(r, 100))
+      // the first free-space check asks macOS (osascript): wait for the announcement, not for a fixed time
+      for (let i = 0; i < 200 && !sent.some((p) => p.event.type === 'waiting_space'); i++) await new Promise((r) => setTimeout(r, 50))
       onEvent({ type: 'done', summary: SUMMARY })
       void waiting.catch(() => {})
       return SUMMARY
