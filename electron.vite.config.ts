@@ -1,4 +1,5 @@
 import react from '@vitejs/plugin-react'
+import { readFileSync } from 'node:fs'
 import { defineConfig, loadEnv } from 'electron-vite'
 import type { Plugin } from 'vite'
 
@@ -19,6 +20,8 @@ function contentSecurityPolicy(): Plugin {
     },
   }
 }
+
+const appVersion = (JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }).version
 
 export default defineConfig(({ mode, command }) => {
   // Empty prefix = read every variable of .env; only the two OAuth values are injected, and only into main.
@@ -46,6 +49,10 @@ export default defineConfig(({ mode, command }) => {
       },
     },
     renderer: {
+      define: {
+        // shown on the home screen, so that a support question starts with which build is running
+        __APP_VERSION__: JSON.stringify(appVersion),
+      },
       plugins: [react(), contentSecurityPolicy()],
     },
   }

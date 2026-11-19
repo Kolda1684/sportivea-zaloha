@@ -1,5 +1,6 @@
 /** Czech copy of the shell (home, top bar, settings); each mode keeps its own strings. */
 export const APP_NAME = 'Sportivea Záloha'
+export const APP_VERSION = `Verze ${__APP_VERSION__}`
 export const SETTINGS_LINK = 'Nastavení'
 export const HOME_DOWNLOAD = 'Stáhnout z Drivu'
 export const HOME_DOWNLOAD_SUB = 'Celá složka z Google Disku na externí disk'

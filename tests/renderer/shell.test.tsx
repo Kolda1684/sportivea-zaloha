@@ -54,6 +54,7 @@ describe('Home', () => {
     expect(html).toContain('Celá složka z Google Disku na externí disk')
     expect(html).toContain('Nahrát kartu')
     expect(html).toContain('Roztřídit, pojmenovat a nahrát na Drive')
+    expect(html).toContain('Verze 0.0.0-test')
   })
   it('shows the status of a running mode', () => {
     const html = renderToStaticMarkup(

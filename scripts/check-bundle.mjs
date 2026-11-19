@@ -47,6 +47,11 @@ check('signature valid (codesign --verify --deep --strict)', () => {
   execFileSync('codesign', ['--verify', '--deep', '--strict', app], { stdio: 'pipe' })
 })
 
+check('signed with the stable Sportivea certificate, not ad-hoc (Keychain access survives updates)', () => {
+  const out = execFileSync('codesign', ['-d', '-r-', app], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+  if (!/identifier "cz\.sportivea\.zaloha" and certificate root = H"[0-9a-f]{40}"/.test(out)) throw new Error(out.trim() || 'no designated requirement')
+})
+
 check('bundled binaries load nothing from Homebrew, /usr/local or /Users', () => {
   const dirs = [path.join(resources, 'bin'), path.join(resources, 'app.asar.unpacked', 'node_modules', 'ffmpeg-static')]
   let count = 0

@@ -1,4 +1,4 @@
-import { HOME_CARDS, HOME_CARDS_SUB, HOME_DOWNLOAD, HOME_DOWNLOAD_SUB } from './strings'
+import { APP_VERSION, HOME_CARDS, HOME_CARDS_SUB, HOME_DOWNLOAD, HOME_DOWNLOAD_SUB } from './strings'
 
 type HomeProps = {
   downloadStatus: string | null
@@ -21,6 +21,7 @@ export function Home({ downloadStatus, cardsStatus, onDownload, onCards }: HomeP
         <span className="home-sub">{HOME_CARDS_SUB}</span>
         {cardsStatus !== null && <span className="home-status">{cardsStatus}</span>}
       </button>
+      <p className="muted small home-version">{APP_VERSION}</p>
     </div>
   )
 }

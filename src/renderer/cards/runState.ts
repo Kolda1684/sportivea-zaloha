@@ -31,7 +31,8 @@ export type RunState = {
   queuePosition: number
   scanned: { videos: number; others: number; bytes: number } | null
   items: RunItem[]
-  waitingSpace: boolean
+  /** Waiting for room on the Drive folder's disk: bytes the next file needs (incl. reserve) and bytes free. */
+  waitingSpace: { needed: number; free: number } | null
   cardRemoved: boolean
   summary: RunSummary | null
   failure: string | null
@@ -53,7 +54,7 @@ export function newRun(input: NewRunInput): RunState {
     queuePosition: 0,
     scanned: null,
     items: [],
-    waitingSpace: false,
+    waitingSpace: null,
     cardRemoved: false,
     summary: null,
     failure: null,
@@ -132,17 +133,17 @@ export function reduceRun(run: RunState, event: RunUiEvent): RunState {
     case 'copied':
       return {
         ...run,
-        waitingSpace: false,
+        waitingSpace: null,
         items: upsert(run.items, event.relPath, (item) => applyCopy(item, event.outcome, run.eventDir)),
       }
     case 'waiting_space':
-      return { ...run, waitingSpace: true }
+      return { ...run, waitingSpace: { needed: event.needed, free: event.free } }
     case 'card_removed':
       return { ...run, cardRemoved: true }
     case 'done':
-      return { ...run, phase: 'finished', summary: event.summary, waitingSpace: false }
+      return { ...run, phase: 'finished', summary: event.summary, waitingSpace: null }
     case 'failed':
-      return { ...run, phase: 'failed', failure: event.message, waitingSpace: false }
+      return { ...run, phase: 'failed', failure: event.message, waitingSpace: null }
   }
 }
 

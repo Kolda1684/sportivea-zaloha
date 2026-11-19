@@ -848,6 +848,12 @@ ul.manual > li:first-child {
   color: var(--muted);
 }
 
+.home-version {
+  grid-column: 1 / -1;
+  margin: 0;
+  text-align: right;
+}
+
 .home-status {
   margin-top: auto;
   font-weight: 600;

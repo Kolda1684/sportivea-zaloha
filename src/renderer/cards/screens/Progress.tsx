@@ -1,4 +1,4 @@
-import { baseName, plural } from '../format'
+import { baseName, formatBytes, plural } from '../format'
 import { progressOf, type ItemState, type RunItem, type RunState } from '../runState'
 import { CARD_REMOVED_MESSAGE, NOT_BACKED_UP, WAITING_SPACE_MESSAGE } from '../strings'
 
@@ -75,9 +75,10 @@ export function Progress({ run, onBack }: Props) {
           {CARD_REMOVED_MESSAGE}
         </p>
       )}
-      {run.waitingSpace && (
+      {run.waitingSpace !== null && (
         <p className="callout warn" role="status">
-          {WAITING_SPACE_MESSAGE}
+          {WAITING_SPACE_MESSAGE} Volno {formatBytes(run.waitingSpace.free)}, další soubor potřebuje {formatBytes(run.waitingSpace.needed)} (včetně
+          rezervy 5 GB).
         </p>
       )}
 

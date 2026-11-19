@@ -172,14 +172,14 @@ describe('items', () => {
 describe('waiting for disk space', () => {
   it('shows the note until the next copy finishes', () => {
     let s = apply(start(), { type: 'waiting_space', needed: 10, free: 1 })
-    expect(s.waitingSpace).toBe(true)
+    expect(s.waitingSpace).toEqual({ needed: 10, free: 1 })
     s = apply(s, { type: 'copied', relPath: 'A.MP4', outcome: { status: 'copied', destPath: `${EVENT_DIR}/Zápas/A.MP4`, bytes: 1, sha256: 'x' } })
-    expect(s.waitingSpace).toBe(false)
+    expect(s.waitingSpace).toBeNull()
   })
 
   it('is cleared when the run ends', () => {
     const s = apply(start(), { type: 'waiting_space', needed: 10, free: 1 }, { type: 'done', summary: summary({ status: 'aborted' }) })
-    expect(s.waitingSpace).toBe(false)
+    expect(s.waitingSpace).toBeNull()
   })
 })
 

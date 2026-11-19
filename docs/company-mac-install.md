@@ -47,7 +47,9 @@ Aplikace pozná kartu, jen když běží. **Nastavení systému → Obecné → 
 ## Pravidla
 
 - **Jednu kartu nahrávej jen na jednom počítači.** Každý Mac si pamatuje jen svoje nahrané karty. Kdyby se stejná karta nahrála na dvou Macích do stejné akce, nic se nesmaže ani nepřepíše, jen vzniknou kopie s „(2)“.
-- Po instalaci **nové verze** se macOS může jednou zeptat na heslo uživatele kvůli Klíčence. Zadej ho a dej **Vždy povolit**. Kdybys dal Zamítnout, aplikace nepřečte klíč ke Claude (karty pak půjde jen nahrát beze změny) a požádá o nové přihlášení ke Googlu.
+- **Klíčenka:** když se macOS zeptá, jestli může Sportivea Záloha použít Klíčenku, zadej heslo uživatele a dej **Vždy povolit**, nikdy Zamítnout. Po zamítnutí nejde uložit klíč ke Claude („Error while encrypting… safeStorage“) ani přihlášení ke Googlu. Od verze 0.3.0 je aplikace podepsaná stále stejným certifikátem, takže se macOS zeptá naposledy při přechodu na 0.3.0 a další aktualizace už přístup zachovají.
+- **Když uložení klíče hlásí chybu safeStorage** a macOS se nezeptá: ukonči aplikaci, v aplikaci **Klíčenka** vyhledej **sportivea-zaloha Safe Storage**, smaž tuto položku, aplikaci spusť a klíč ke Claude i přihlášení ke Googlu zadej znovu.
+- **Verze** běžící aplikace je napsaná dole na úvodní obrazovce.
 - Na **tvém Macu**: po instalaci nové aplikace už nespouštěj staré Stahování z Disku a Třídění karet. Hlavně Třídění karet, protože by se na stejnou kartu ozvaly obě. Rozdělané stahování ze staré aplikace dokončíš v nové: vlož stejný odkaz a vyber stejný cíl. Staré aplikace smaž, až budeš spokojený.
 
 ## Aktualizace

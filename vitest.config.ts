@@ -3,6 +3,7 @@ import { defineConfig } from 'vitest/config'
 export default defineConfig({
   // Build-time constants that electron.vite.config.ts injects into the main bundle only.
   define: {
+    __APP_VERSION__: JSON.stringify('0.0.0-test'),
     __GOOGLE_OAUTH_CLIENT_ID__: JSON.stringify(''),
     __GOOGLE_OAUTH_CLIENT_SECRET__: JSON.stringify(''),
   },

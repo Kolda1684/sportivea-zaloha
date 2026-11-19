@@ -6,6 +6,7 @@ import { DEFAULT_TEMPLATES } from '../../../src/core/cards/templates'
 import type { CardDetected, Settings } from '../../../src/shared/cards-ipc'
 import { Done } from '../../../src/renderer/cards/screens/Done'
 import { NewCard } from '../../../src/renderer/cards/screens/NewCard'
+import { Progress } from '../../../src/renderer/cards/screens/Progress'
 import { AI_UNAVAILABLE_MESSAGE, COPY_DONE_MESSAGE, KEY_MISSING_HINT, NO_AI_DONE_MESSAGE, TOOLS_MISSING_MESSAGE } from '../../../src/renderer/cards/strings'
 
 const summary = (patch: Partial<RunSummary> = {}): RunSummary => ({
@@ -174,5 +175,14 @@ describe('Done without AI', () => {
     const html = renderDone(summary({ ai: 'off', unclassified: 2, perFolder: { _nezařazeno: 2 } }))
     expect(html).toContain(NO_AI_DONE_MESSAGE)
     expect(html).not.toContain('nepodařilo roztřídit')
+  })
+})
+
+describe('Progress while waiting for disk space', () => {
+  it('shows how much is free and how much the next file needs', () => {
+    const waiting: RunState = { ...run(), phase: 'running', waitingSpace: { needed: 25.1e9, free: 12.3e9 } }
+    const html = renderToStaticMarkup(<Progress run={waiting} onBack={() => {}} />)
+    expect(html).toContain('Čekám, až Google Drive uvolní místo na disku…')
+    expect(html).toContain('Volno 12,3 GB, další soubor potřebuje 25,1 GB (včetně rezervy 5 GB).')
   })
 })
